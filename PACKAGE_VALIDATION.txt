@@ -1,0 +1,17 @@
+PACKAGE VALIDATION
+
+Completed checks:
+- Required monorepo files are present.
+- Storefront/admin API path constants match implemented backend routes.
+- All 47 frontend TypeScript/TSX source files parsed successfully for syntax.
+- Backend JavaScript files passed node --check.
+- Admin and customer browser storage keys are distinct.
+- Admin and customer JWT secrets are distinct environment variables.
+- Prisma migration and idempotent seed are included.
+- Vercel SPA rewrite files are included for both Vite frontends.
+- Express-to-Vercel rewrite file is included for the API.
+
+Not executed in this workspace:
+- Full npm dependency installation and production builds, because the workspace package registry did not contain required public packages and external npm downloads timed out.
+
+Vercel will install dependencies from the public npm registry during deployment. Build settings are documented in DEPLOY_TO_VERCEL.md.

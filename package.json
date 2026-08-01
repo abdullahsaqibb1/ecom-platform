@@ -1,0 +1,17 @@
+{
+  "name": "ecom-complete-vercel",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "check": "node scripts/check-package.js",
+    "generate:secrets": "node scripts/generate-secrets.js",
+    "dev:backend": "npm --prefix apps/backend run dev",
+    "dev:storefront": "npm --prefix apps/storefront run dev -- --port 5173",
+    "dev:admin": "npm --prefix apps/admin run dev -- --port 5174",
+    "build:storefront": "npm --prefix apps/storefront run build",
+    "build:admin": "npm --prefix apps/admin run build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
