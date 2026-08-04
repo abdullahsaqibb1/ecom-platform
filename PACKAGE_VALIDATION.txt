@@ -1,21 +1,23 @@
-COSMIC TECH COMMERCE OPERATIONS — VALIDATION REPORT
-Generated: 2026-08-04
+Cosmic Tech admin-finance/CMS update validation
+Date: 2026-08-04
 
-PASSED
-- Backend JavaScript syntax: 13 files checked with node --check.
-- Frontend TypeScript/TSX syntax: 53 files transpile-parsed with TypeScript.
-- Relative TypeScript import paths: resolved in the final source tree.
-- JSON parsing: package and configuration JSON files parse successfully.
-- CSS delimiter checks: admin and storefront stylesheets have balanced braces.
-- Existing launch-sprint Safepay signature, rotation, payload, and amount tests passed.
-- Static package markers confirmed for inventory, collections, discounts, bulk product actions, payment methods, rich product publishing, checkout discounts, and storefront specifications.
-- Credential literal scan: legacy admin@store.com / Admin@12345 values are absent from this package.
-- Additive migration present: 202608040002_tech_commerce_operations.
-- Total package files at validation time: 112.
+Passed checks
+- 59 TypeScript/TSX source files parsed with the TypeScript compiler API: 0 syntax diagnostics.
+- TypeScript no-unused scan: no TS6133/TS6192/TS6196/TS6198 diagnostics were found before unresolved third-party-module diagnostics.
+- All backend, API, Prisma-script, and package-check JavaScript files passed `node --check`.
+- All relative TypeScript/TSX imports resolve to a local source file.
+- All JSON files parsed successfully.
+- Admin and storefront CSS delimiter checks passed.
+- Package structure and implementation-marker script passed.
+- New migration order is additive: 202608040003 follows the existing 202608040002 migration.
+- New database relationships were reviewed for matching inverse Prisma relations.
+- Legacy literal credentials admin@store.com / Admin@12345 are absent from source and documentation.
+- Temporary type-check stubs and node_modules directories are absent from the package.
 
-NOT EXECUTED IN THIS WORKSPACE
-- Full npm dependency installation and Vite production builds.
-- prisma validate / migration execution against the user's live Neon database.
-- Live API calls to Vercel, Neon, Cloudinary, Safepay, or Resend.
-
-Reason: the workspace package registry does not provide every public dependency required by the React applications. Vercel should perform the real install/build after the GitHub commit. Review the backend build log for prisma migrate deploy before testing the admin UI.
+Important limitations
+- A complete npm install, `tsc -b`, Vite production build, and Prisma CLI validation could not be run in this workspace because its internal npm registry does not provide the required public packages, including Prisma.
+- The real Prisma migration must be confirmed by the existing ecom-backend Vercel build against the deployed PostgreSQL database.
+- Live Cloudinary uploads require the already configured provider credentials.
+- Order deletion does not trigger an external payment-provider refund.
+- Historical OrderItem purchase costs are backfilled from the current variant/product cost and may be estimates.
+- Gross profit excludes courier costs, payment-provider fees, tax expense, returns/refunds, overhead, and other untracked operating costs.

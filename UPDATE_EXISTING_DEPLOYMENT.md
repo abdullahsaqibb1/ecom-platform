@@ -1,70 +1,93 @@
 # Update the Existing Cosmic Tech Deployment
 
-Do not create new Vercel projects. Keep the existing:
+This is an in-place update. Do not create new Vercel projects and do not reconnect the domains.
 
-- `ecom-backend`
-- `ecom-admin`
-- `ecom-storefront`
-- PostgreSQL/Neon database
-- `cosmictech.digital`
-- `admin.cosmictech.digital`
-- Existing environment variables and admin account
+## Preserved automatically
 
-## GitHub web update
+- `ecom-backend`, `ecom-admin`, and `ecom-storefront` Vercel projects
+- `cosmictech.digital` and `admin.cosmictech.digital`
+- PostgreSQL database and existing records
+- Existing users and administrators
+- Existing environment variables and JWT secrets
+- Existing products, inventory, categories, collections, discounts, and orders
 
-1. Extract the patch ZIP.
-2. Open the existing `abdullahsaqibb1/ecom-platform` repository.
-3. Stay at the repository root.
-4. Select **Add file → Upload files**.
-5. Drag the `apps` folder and the included documentation files from the extracted patch into GitHub.
-6. Confirm paths begin with `apps/backend`, `apps/admin`, or `apps/storefront` and not with the patch-folder name.
-7. Commit directly to `main` using:
+## GitHub Web upload
 
-   `Add Cosmic Tech commerce operations`
+1. Extract `cosmic-tech-admin-finance-cms-patch.zip`.
+2. Open the existing `ecom-platform` GitHub repository at its root.
+3. Choose **Add file → Upload files**.
+4. Drag everything inside the extracted patch folder into GitHub.
+5. Confirm paths begin with `apps/backend/`, `apps/admin/`, `apps/storefront/`, or the documentation filename.
+6. Do not upload the outer patch folder as a nested directory.
+7. Commit directly to `main` with:
 
-GitHub will replace changed paths and add the new migration/routes/pages.
+   `Add admin finance reporting and storefront studio`
 
-## Delete the old credential document
+## Deployment order
 
-The new seed and reset scripts fail safely when required admin variables are missing. In the existing GitHub repository, manually delete `ADMIN_CREDENTIALS.txt` because uploading a patch cannot remove an existing file:
+Vercel should start deployments automatically.
 
-1. Open `ADMIN_CREDENTIALS.txt` on GitHub.
-2. Use the trash/delete-file action.
-3. Commit the deletion to `main`.
+### 1. Backend
 
-Also keep real admin credentials only in Vercel environment variables.
+Watch `ecom-backend` first. Its build must run:
 
-## Vercel behavior
+- `prisma generate`
+- `prisma migrate deploy`
+- `prisma db seed`
 
-The same GitHub commit should trigger the existing three Vercel projects. No domain, root-directory, database, or API URL setup needs to be repeated.
+The new additive migration is:
 
-The backend deployment runs:
+`202608040003_admin_finance_storefront_cms`
 
-```text
-prisma generate
-prisma migrate deploy
-prisma db seed
-```
+It adds:
 
-The migration is additive. The seed does not overwrite existing products, admins, payment settings, or categories that already exist under the same unique values.
+- `OrderItem.unitCost`
+- `StorefrontSettings`
+- `ContentPage`
+- `OrderDeletionLog`
 
-## Existing variables
+It does not drop existing tables or records.
 
-Keep all existing variables. No new provider key is required for the core inventory, collection, discount, bulk-action, or manual payment-method features.
+### 2. Admin
 
-Safepay, Cloudinary, and Resend can remain unconfigured for now. The Payment Methods page reports whether an online provider is ready. Cash on delivery remains available as a safe fallback after the seed.
+After the backend is Ready, verify the newest `ecom-admin` deployment is Ready. The sidebar should include **Storefront studio**, and the Overview page should show financial reporting.
 
-## Verification
+### 3. Storefront
 
-After all deployments show **Ready**:
+Verify the newest `ecom-storefront` deployment is Ready. The storefront will continue using the existing design until settings are published from Storefront Studio.
+
+## Environment variables
+
+No new environment variables are required for this update.
+
+Keep the existing backend variables, especially:
+
+- `DATABASE_URL`
+- `JWT_CUSTOMER_SECRET`
+- `JWT_ADMIN_SECRET`
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`
+- `ADMIN_ORIGINS`
+- `CUSTOMER_ORIGINS`
+
+Cloudinary must already be configured for dashboard image uploads. Without Cloudinary, administrators can still paste hosted image URLs into Storefront Studio.
+
+## First-use checklist
 
 1. Open `https://admin.cosmictech.digital`.
-2. Confirm navigation includes Inventory, Collections, Discounts, and Payment Methods.
-3. Create or edit a product and verify brand, model, compatibility, specifications, cost, threshold, collections, and configurations save.
-4. Open Inventory, adjust one SKU, and confirm a movement appears in the ledger.
-5. Select multiple products and test adding them to a collection.
-6. Create a test discount and validate it at storefront checkout.
-7. Enable or disable Cash on Delivery and verify checkout updates.
-8. Open a storefront collection and verify brand/compatibility/configuration filters.
+2. Open **Products** and enter purchase cost for products and configurations.
+3. Open **Overview** and confirm the missing-cost warning decreases as costs are completed.
+4. Open **Storefront studio** and review the current brand, navigation, homepage, footer, and content pages.
+5. Upload the logo and favicon, then publish the storefront settings.
+6. Open `https://cosmictech.digital` in a private browser window and verify the changes.
+7. Test order deletion only with a test or duplicate order first.
 
-If the backend deployment fails, open its build log and locate the `prisma migrate deploy` output before redeploying the frontend projects.
+## Important deletion warning
+
+Deleting a paid order does not issue a payment-provider refund. Refund a real payment through the provider before deleting the order. An audit snapshot is retained, but the active order cannot be restored from the dashboard.
+
+## Financial reporting limitations
+
+Gross profit is product revenue after order-level discounts minus captured purchase cost. It does not yet include courier expense, payment fees, tax expense, refunds, returns, or overhead.
+
+Costs for old orders are backfilled from the current cost at migration time and may be estimates. New orders preserve the purchase cost at the time of order placement.

@@ -1,5 +1,5 @@
 import { mockCategories, mockProducts } from '../data/mock';
-import type { Category, Collection, Customer, DiscountPreview, Order, OrderCreationResult, Paginated, PaymentMethod, Product } from '../types/domain';
+import type { Category, Collection, ContentPageRecord, Customer, DiscountPreview, Order, OrderCreationResult, Paginated, PaymentMethod, Product, StorefrontSettings } from '../types/domain';
 import { customerTokenStorage } from './storage';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -12,6 +12,8 @@ export const STORE_API = {
   collections: '/api/collections',
   collection: (slug: string) => `/api/collections/${slug}`,
   paymentMethods: '/api/payment-methods',
+  storefrontConfig: '/api/storefront/config',
+  contentPage: (slug: string) => `/api/content-pages/${slug}`, 
   validateDiscount: '/api/discounts/validate',
   login: '/api/auth/login',
   register: '/api/auth/register',
@@ -191,4 +193,13 @@ export async function createOrder(body: unknown): Promise<OrderCreationResult> {
     order: unwrapEntity<Order>(payload, ['order']),
     payment: (record.payment ?? { method: { id: 'manual', code: 'cod', provider: 'manual', displayName: 'Cash on delivery', requiresOnlinePayment: false, sortOrder: 0 }, checkoutUrl: null }) as OrderCreationResult['payment'],
   };
+}
+
+
+export async function getStorefrontSettings(): Promise<StorefrontSettings> {
+  return unwrapEntity<StorefrontSettings>(await request<unknown>(STORE_API.storefrontConfig), ['settings']);
+}
+
+export async function getContentPage(slug: string): Promise<ContentPageRecord> {
+  return unwrapEntity<ContentPageRecord>(await request<unknown>(STORE_API.contentPage(slug)), ['page']);
 }

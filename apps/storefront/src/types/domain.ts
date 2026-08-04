@@ -157,3 +157,37 @@ export interface Paginated<T> {
   total: number;
   totalPages: number;
 }
+
+export interface StorefrontLink { label: string; href: string; isVisible?: boolean }
+export interface StorefrontSettings {
+  id?: string;
+  siteName: string;
+  logoUrl?: string | null;
+  logoAlt?: string | null;
+  faviconUrl?: string | null;
+  announcementText?: string | null;
+  announcementLinkLabel?: string | null;
+  announcementLinkUrl?: string | null;
+  supportEmail?: string | null;
+  supportPhone?: string | null;
+  navigation: StorefrontLink[];
+  homepage: {
+    hero: { eyebrow: string; heading: string; body: string; ctaLabel: string; ctaUrl: string; imageUrl: string; visualType: 'EARBUDS_ANIMATION' | 'IMAGE' };
+    productSections: Array<{ title: string; collectionSlug: string; limit: number }>;
+    editorialPanels: Array<{ eyebrow: string; heading: string; ctaLabel: string; ctaUrl: string; imageUrl: string }>;
+    statement: { eyebrow: string; heading: string; ctaLabel: string; ctaUrl: string };
+    mosaic: Array<{ label: string; href: string; imageUrl: string }>;
+  };
+  footer: {
+    newsletterEyebrow: string; newsletterHeading: string; brandDescription: string;
+    columns: Array<{ heading: string; links: StorefrontLink[] }>;
+    supportHeading: string; supportLines: string[]; legalLinks: StorefrontLink[];
+  };
+  theme: { paper: string; ink: string; muted: string; soft: string; cream: string };
+}
+
+export interface ContentPageRecord {
+  id: string; slug: string; title: string; eyebrow?: string | null; body: string; heroImage?: string | null;
+  sections?: Array<{ heading: string; body: string; imageUrl: string }> | null;
+  seoTitle?: string | null; seoDescription?: string | null; isPublished: boolean; sortOrder: number;
+}

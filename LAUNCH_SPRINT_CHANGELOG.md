@@ -1,6 +1,6 @@
 # Launch Sprint Changelog
 
-Scope: audit items 2–6 only. The previously audited hardcoded seed/reset credential fallback remains unchanged and is still an open security task.
+Original scope: audit items 2–6. A later security follow-up removed the hardcoded seed/reset credential fallback; the scripts now require environment variables.
 
 ## Backend
 

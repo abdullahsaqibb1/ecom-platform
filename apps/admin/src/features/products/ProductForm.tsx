@@ -164,6 +164,8 @@ export function ProductForm({ product, categories, collections, isSubmitting, on
         </div>
       </div>
 
+      {product ? <div className="product-finance-strip"><div><span>Units sold</span><strong>{product.salesMetrics?.unitsSold ?? 0}</strong></div><div><span>Paid item revenue</span><strong>Rs {Number(product.salesMetrics?.revenue ?? 0).toLocaleString()}</strong></div><div><span>Realized purchase cost</span><strong>Rs {Number(product.salesMetrics?.cost ?? 0).toLocaleString()}</strong></div><div><span>Gross product profit</span><strong>Rs {Number(product.salesMetrics?.grossProfit ?? 0).toLocaleString()}</strong></div></div> : null}
+
       <div className="form-section">
         <div className="form-section__header"><div><strong>Pricing & inventory rules</strong><span>Stock changes are recorded in the inventory ledger.</span></div></div>
         <div className="form-grid">

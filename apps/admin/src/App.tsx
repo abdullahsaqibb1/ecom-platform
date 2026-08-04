@@ -10,6 +10,7 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { OrdersPage } from './features/orders/OrdersPage';
 import { PaymentMethodsPage } from './features/payments/PaymentMethodsPage';
 import { ProductsPage } from './features/products/ProductsPage';
+import { StorefrontPage } from './features/storefront/StorefrontPage';
 import { AdminLayout } from './layouts/AdminLayout';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="collections" element={<CollectionsPage />} />
         <Route path="discounts" element={<DiscountsPage />} />
         <Route path="payments" element={<PaymentMethodsPage />} />
+        <Route path="storefront" element={<StorefrontPage />} />
         <Route path="admins" element={<AdminsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

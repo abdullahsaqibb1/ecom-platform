@@ -12,12 +12,16 @@ import {
   ShieldCheck,
   UsersRound,
   Warehouse,
+  MonitorSmartphone,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { initials } from '../lib/format';
+import { ADMIN_API, apiRequest, unwrapEntity } from '../lib/api';
+import type { StorefrontSettings } from '../types/domain';
 
 const baseNav = [
   { to: '/', label: 'Overview', icon: CircleGauge },
@@ -28,6 +32,7 @@ const baseNav = [
   { to: '/collections', label: 'Collections', icon: Layers3 },
   { to: '/discounts', label: 'Discounts', icon: BadgePercent },
   { to: '/payments', label: 'Payment methods', icon: CreditCard },
+  { to: '/storefront', label: 'Storefront studio', icon: MonitorSmartphone },
 ];
 
 export function AdminLayout() {
@@ -35,6 +40,8 @@ export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
+  const settingsQuery = useQuery({ queryKey: ['storefront-settings', 'layout'], queryFn: async () => unwrapEntity<StorefrontSettings>(await apiRequest(ADMIN_API.storefront), ['settings']), staleTime: 60_000 });
+  const storefront = settingsQuery.data;
   const navItems = admin?.role === 'SUPERADMIN'
     ? [...baseNav, { to: '/admins', label: 'Admin accounts', icon: UsersRound }]
     : baseNav;
@@ -43,8 +50,8 @@ export function AdminLayout() {
     <div className="app-shell">
       <aside className={`sidebar ${mobileOpen ? 'sidebar--open' : ''}`}>
         <div className="sidebar__brand">
-          <div className="brand-mark"><ShieldCheck size={22} /></div>
-          <div><strong>Cosmic Tech</strong><span>Commerce operations</span></div>
+          <div className={`brand-mark ${storefront?.logoUrl ? 'brand-mark--logo' : ''}`}>{storefront?.logoUrl ? <img src={storefront.logoUrl} alt="" /> : <ShieldCheck size={22} />}</div>
+          <div><strong>{storefront?.siteName ?? 'Cosmic Tech'}</strong><span>Commerce operations</span></div>
           <button className="icon-button sidebar__close" onClick={() => setMobileOpen(false)}><X size={20} /></button>
         </div>
         <nav className="sidebar__nav">

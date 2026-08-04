@@ -207,6 +207,111 @@ const shipmentSchema = z.object({
   estimatedDelivery: z.string().datetime().nullable().optional(),
 }).strict();
 
+
+const storefrontLinkSchema = z.object({
+  label: z.string().trim().min(1).max(100),
+  href: z.string().trim().min(1).max(500),
+  isVisible: z.boolean().optional().default(true),
+}).strict();
+
+const homepagePanelSchema = z.object({
+  eyebrow: z.string().trim().max(120).default(''),
+  heading: z.string().trim().min(2).max(300),
+  ctaLabel: z.string().trim().max(100).default(''),
+  ctaUrl: z.string().trim().max(500).default(''),
+  imageUrl: z.union([z.literal(''), httpUrl]).default(''),
+}).strict();
+
+const homepageSchema = z.object({
+  hero: z.object({
+    eyebrow: z.string().trim().max(160).default(''),
+    heading: z.string().trim().min(2).max(500),
+    body: z.string().trim().max(1000).default(''),
+    ctaLabel: z.string().trim().max(100).default(''),
+    ctaUrl: z.string().trim().max(500).default(''),
+    imageUrl: z.union([z.literal(''), httpUrl]).default(''),
+    visualType: z.enum(['EARBUDS_ANIMATION', 'IMAGE']).default('EARBUDS_ANIMATION'),
+  }).strict(),
+  productSections: z.array(z.object({
+    title: z.string().trim().min(1).max(120),
+    collectionSlug: z.string().trim().min(1).max(140),
+    limit: z.coerce.number().int().min(1).max(12).default(4),
+  }).strict()).max(6).default([]),
+  editorialPanels: z.array(homepagePanelSchema).max(4).default([]),
+  statement: z.object({
+    eyebrow: z.string().trim().max(120).default(''),
+    heading: z.string().trim().min(2).max(700),
+    ctaLabel: z.string().trim().max(100).default(''),
+    ctaUrl: z.string().trim().max(500).default(''),
+  }).strict(),
+  mosaic: z.array(z.object({
+    label: z.string().trim().min(1).max(100),
+    href: z.string().trim().min(1).max(500),
+    imageUrl: z.union([z.literal(''), httpUrl]).default(''),
+  }).strict()).max(6).default([]),
+}).strict();
+
+const footerSchema = z.object({
+  newsletterEyebrow: z.string().trim().max(120).default(''),
+  newsletterHeading: z.string().trim().max(300).default(''),
+  brandDescription: z.string().trim().max(1000).default(''),
+  columns: z.array(z.object({
+    heading: z.string().trim().min(1).max(100),
+    links: z.array(storefrontLinkSchema.omit({ isVisible: true })).max(12).default([]),
+  }).strict()).max(4).default([]),
+  supportHeading: z.string().trim().max(100).default('Support'),
+  supportLines: stringList(200, 10),
+  legalLinks: z.array(storefrontLinkSchema.omit({ isVisible: true })).max(8).default([]),
+}).strict();
+
+const themeSchema = z.object({
+  paper: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/),
+  ink: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/),
+  muted: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/),
+  soft: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/),
+  cream: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/),
+}).strict();
+
+const storefrontSettingsSchema = z.object({
+  siteName: z.string().trim().min(2).max(120),
+  logoUrl: optionalHttpUrl,
+  logoAlt: nullableText(160),
+  faviconUrl: optionalHttpUrl,
+  announcementText: nullableText(300),
+  announcementLinkLabel: nullableText(100),
+  announcementLinkUrl: z.string().trim().max(500).nullable().optional(),
+  supportEmail: z.union([z.literal(''), z.string().trim().email()]).transform((value) => value || null).nullable().optional(),
+  supportPhone: nullableText(50),
+  navigation: z.array(storefrontLinkSchema).max(16),
+  homepage: homepageSchema,
+  footer: footerSchema,
+  theme: themeSchema,
+}).strict();
+
+const contentPageFields = {
+  slug,
+  title: z.string().trim().min(2).max(160),
+  eyebrow: nullableText(120),
+  body: z.string().trim().min(1).max(50000),
+  heroImage: optionalHttpUrl,
+  sections: z.array(z.object({
+    heading: z.string().trim().max(200).default(''),
+    body: z.string().trim().max(10000).default(''),
+    imageUrl: z.union([z.literal(''), httpUrl]).default(''),
+  }).strict()).max(20).nullable().optional(),
+  seoTitle: nullableText(70),
+  seoDescription: nullableText(180),
+  isPublished: z.boolean().default(true),
+  sortOrder: z.coerce.number().int().min(0).max(100000).default(0),
+};
+const contentPageCreateSchema = z.object(contentPageFields).strict();
+const contentPageUpdateSchema = z.object(Object.fromEntries(Object.entries(contentPageFields).map(([key, schema]) => [key, schema.optional()])))
+  .strict().refine((value) => Object.keys(value).length > 0, 'At least one field is required.');
+
+const orderDeleteSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+}).strict();
+
 const mediaCreateSchema = z.object({
   publicId: z.string().trim().min(2).max(500),
   secureUrl: httpsUrl,
@@ -237,5 +342,9 @@ module.exports = {
   manualPaymentSchema,
   orderStatusSchema,
   shipmentSchema,
+  storefrontSettingsSchema,
+  contentPageCreateSchema,
+  contentPageUpdateSchema,
+  orderDeleteSchema,
   mediaCreateSchema,
 };

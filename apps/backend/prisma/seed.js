@@ -1,6 +1,7 @@
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
+const { defaultStorefrontData } = require('../src/storefront-config');
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,17 @@ const collections = [
   { name: 'Fast Charging', slug: 'fast-charging', isFeatured: true, sortOrder: 20 },
   { name: 'iPhone Essentials', slug: 'iphone-essentials', isFeatured: true, sortOrder: 30 },
   { name: 'Best Sellers', slug: 'best-sellers', isFeatured: true, sortOrder: 40 },
+];
+
+
+const contentPages = [
+  { slug: 'about', title: 'About Cosmic Tech', eyebrow: 'Our approach', body: 'We select everyday technology for clarity, compatibility and dependable use. Every product should solve a real problem without adding unnecessary complexity.' },
+  { slug: 'shipping', title: 'Shipping', eyebrow: 'Delivery', body: 'Orders are prepared after confirmation and dispatched through the selected courier. Delivery timings depend on destination and product availability.' },
+  { slug: 'returns', title: 'Returns & exchanges', eyebrow: 'Customer care', body: 'Contact support with your order number if an item arrives damaged, incorrect or unsuitable. Eligibility depends on condition, packaging and the applicable return window.' },
+  { slug: 'compatibility-guide', title: 'Compatibility guide', eyebrow: 'Before you buy', body: 'Check the connector, power output, wireless standard, device model and charging protocol shown on every product page. Contact support when you are unsure.' },
+  { slug: 'contact', title: 'Contact', eyebrow: 'Customer support', body: 'Use the support email or phone number shown in the website footer and include your order number when contacting us about an existing purchase.' },
+  { slug: 'privacy', title: 'Privacy policy', eyebrow: 'Legal', body: 'This page should be reviewed and replaced with the store’s final privacy policy before public launch.' },
+  { slug: 'terms', title: 'Terms of service', eyebrow: 'Legal', body: 'This page should be reviewed and replaced with the store’s final terms of service before public launch.' },
 ];
 
 const paymentMethods = [
@@ -133,6 +145,21 @@ async function main() {
       where: { code: method.code },
       update: {},
       create: method,
+    });
+  }
+
+  const storefront = defaultStorefrontData();
+  await prisma.storefrontSettings.upsert({
+    where: { id: 'primary' },
+    update: {},
+    create: storefront,
+  });
+
+  for (const page of contentPages) {
+    await prisma.contentPage.upsert({
+      where: { slug: page.slug },
+      update: {},
+      create: { ...page, sections: [], isPublished: true },
     });
   }
 

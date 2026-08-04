@@ -107,3 +107,11 @@ Discount eligibility, scope, amount, usage limits and per-customer limits are ev
 ## Payment-method boundary
 
 The database stores safe operational settings such as display name, instructions, order, enabled state and non-secret configuration. Provider credentials remain in backend environment variables. Public checkout only receives enabled methods whose provider environment is ready.
+
+## Finance, deletion audit, and storefront content layer
+
+New orders snapshot purchase cost into `OrderItem.unitCost`. Finance reporting reads paid, non-cancelled orders and compares discounted product revenue with the captured item cost. Current inventory investment uses product/configuration cost and current stock.
+
+Permanent order deletion is restricted to `SUPERADMIN`. Before deletion, the backend stores a JSON snapshot and reason in `OrderDeletionLog`. Eligible unshipped inventory is restored in the same database transaction. The deletion does not call an external refund API.
+
+`StorefrontSettings` stores one primary structured configuration for site identity, announcement, navigation, homepage, footer, and neutral theme variables. `ContentPage` stores managed customer-facing pages. The public API returns only the safe storefront configuration; admin identity and update-audit fields are not exposed.

@@ -23,7 +23,8 @@ export function CollectionPage() {
 
   const params = useMemo(() => {
     const next = new URLSearchParams();
-    if (slug !== 'all') {
+    if (slug === 'new') next.set('sort', 'newest');
+    else if (slug !== 'all') {
       if (matchedCollection) next.set('collection', slug);
       else next.set('category', slug);
     }
@@ -55,9 +56,9 @@ export function CollectionPage() {
   }, [data, configuration, finish, compatibility, brand, sort]);
 
   const searchTitle = searchParams.get('search');
-  const title = searchTitle ? `Search: “${searchTitle}”` : slug === 'all' ? 'The full collection' : matchedCollection?.name ?? matchedCategory?.name ?? slug.replace(/-/g, ' ');
+  const title = searchTitle ? `Search: “${searchTitle}”` : slug === 'all' ? 'The full collection' : slug === 'new' ? 'New arrivals' : matchedCollection?.name ?? matchedCategory?.name ?? slug.replace(/-/g, ' ');
   const description = matchedCollection?.description ?? matchedCategory?.description ?? 'A considered selection of audio, charging and connection essentials chosen for clear compatibility and dependable everyday use.';
-  const eyebrow = matchedCollection ? 'Curated collection' : matchedCategory ? 'Category' : 'Products';
+  const eyebrow = slug === 'new' ? 'Latest products' : matchedCollection ? 'Curated collection' : matchedCategory ? 'Category' : 'Products';
   const activeFilterCount = [configuration, finish, compatibility, brand].filter(Boolean).length;
 
   return (

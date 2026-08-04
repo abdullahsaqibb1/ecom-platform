@@ -26,7 +26,7 @@ Customer and admin identities remain separate through different database models,
 ### Admin
 
 - Separate admin authentication
-- Catalog dashboard and inventory-risk metrics
+- Editorial performance dashboard with paid revenue, inventory investment, COGS, gross profit, margin, and inventory-risk metrics
 - Rich technology product publishing
 - Cloudinary image workflow when configured
 - SKU/configuration inventory and movement ledger
@@ -36,6 +36,8 @@ Customer and admin identities remain separate through different database models,
 - Discounts and eligibility targeting
 - Payment-method availability and customer instructions
 - Order, payment, and shipment management
+- Superadmin order deletion with an audit snapshot and stock restoration rules
+- Storefront Studio for site identity, navigation, homepage, footer, images, and content pages
 - Superadmin account management
 
 ### Backend
@@ -47,15 +49,15 @@ Customer and admin identities remain separate through different database models,
 - Product/configuration inventory movements
 - Collections, categories, discounts, and safe payment settings
 - Safepay, Cloudinary, and Resend integration points
-- Additive Prisma migrations and idempotent technology seed
+- Additive Prisma migrations, purchase-cost snapshots, audited order cleanup, storefront CMS, and idempotent technology seed
 
 ## Updating an existing deployment
 
-Read `UPDATE_EXISTING_DEPLOYMENT.md`. Existing Vercel projects, domains, database, and environment variables are preserved.
+Read `UPDATE_EXISTING_DEPLOYMENT.md`. Existing Vercel projects, domains, database, records, and environment variables are preserved.
 
 ## Feature reference
 
-Read `TECH_COMMERCE_OPERATIONS.md` for the inventory, catalog, collection, discount, bulk-action, payment-method, and storefront behavior.
+Read `TECH_COMMERCE_OPERATIONS.md` for catalog operations and `ADMIN_FINANCE_CMS.md` for finance reporting, order deletion, Storefront Studio, and the editorial admin redesign.
 
 ## Remaining future modules
 

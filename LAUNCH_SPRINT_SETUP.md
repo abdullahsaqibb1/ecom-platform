@@ -25,7 +25,7 @@ This package implements requested items 2–6:
 
 ## Deliberately out of scope
 
-The previously audited hardcoded fallback admin credentials in `prisma/seed.js`, `prisma/reset-admin.js`, and the legacy documentation were not changed because this sprint starts at audit item 2. Treat that as a separate unresolved security task and rotate the deployed admin password before launch.
+Security follow-up: the seed and reset scripts now require `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` and fail safely if either is missing. Keep those values private in the backend Vercel project and rotate any credential that was previously exposed.
 
 ## 1. Deploy the database migration and code
 

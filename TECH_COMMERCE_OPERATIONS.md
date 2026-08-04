@@ -126,3 +126,9 @@ The editorial palette and typography remain unchanged.
 Migration `202608040002_tech_commerce_operations` is additive. It does not drop existing customers, admins, products, orders, media, payment events, or notifications.
 
 The migration adds new columns and tables for operations. Existing product active states are mapped to the new status field.
+
+## Finance and storefront administration extension
+
+The subsequent admin-finance/CMS extension adds purchase-cost snapshots, paid-sales profitability, current inventory investment, superadmin order deletion with retained audit snapshots, permanent product cleanup after references are removed, and a Storefront Studio for brand, navigation, homepage, footer, images, palette, and information pages.
+
+See `ADMIN_FINANCE_CMS.md` for definitions and operational warnings.

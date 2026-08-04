@@ -37,6 +37,10 @@ const {
   manualPaymentSchema,
   orderStatusSchema,
   shipmentSchema,
+  storefrontSettingsSchema,
+  contentPageCreateSchema,
+  contentPageUpdateSchema,
+  orderDeleteSchema,
   mediaCreateSchema,
 } = require('./schemas');
 const {
@@ -47,6 +51,7 @@ const {
 } = require('./safepay');
 const { emailEvents } = require('./email');
 const { createUploadSignature, destroyAsset } = require('./cloudinary');
+const { defaultStorefrontData, publicStorefrontSettings } = require('./storefront-config');
 const {
   paymentProviderReady,
   publicPaymentMethod,
@@ -316,6 +321,175 @@ async function attemptSideEffect(promise) {
   }
 }
 
+function decimalNumber(value) {
+  if (value == null) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function financeRange(value) {
+  const allowed = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+  if (!value || value === '30d') return { key: '30d', days: 30, start: new Date(Date.now() - 30 * 86400000) };
+  if (value === 'all') return { key: 'all', days: null, start: null };
+  const days = allowed[value];
+  if (!days) throw new AppError(400, 'Finance range must be 7d, 30d, 90d, 365d, or all.');
+  return { key: value, days, start: new Date(Date.now() - days * 86400000) };
+}
+
+function orderItemCost(item) {
+  return decimalNumber(item.unitCost ?? item.variant?.costPrice ?? item.product?.costPrice);
+}
+
+async function enrichProductsWithSales(products) {
+  if (!products.length) return products;
+  const rows = await prisma.orderItem.findMany({
+    where: {
+      productId: { in: products.map((product) => product.id) },
+      order: { paymentStatus: 'PAID', status: { not: 'CANCELLED' } },
+    },
+    select: {
+      productId: true, quantity: true, unitPrice: true, unitCost: true,
+      order: { select: { subtotal: true, discountTotal: true } },
+      product: { select: { costPrice: true } },
+      variant: { select: { costPrice: true } },
+    },
+  });
+  const metrics = new Map();
+  for (const row of rows) {
+    const current = metrics.get(row.productId) || { unitsSold: 0, revenue: 0, cost: 0, grossProfit: 0 };
+    const rawRevenue = decimalNumber(row.unitPrice) * row.quantity;
+    const subtotal = decimalNumber(row.order.subtotal);
+    const discountTotal = decimalNumber(row.order.discountTotal);
+    const discountFactor = subtotal > 0 ? Math.max(0, (subtotal - discountTotal) / subtotal) : 1;
+    const revenue = rawRevenue * discountFactor;
+    const cost = orderItemCost(row) * row.quantity;
+    current.unitsSold += row.quantity;
+    current.revenue += revenue;
+    current.cost += cost;
+    current.grossProfit += revenue - cost;
+    metrics.set(row.productId, current);
+  }
+  return products.map((product) => ({
+    ...product,
+    salesMetrics: metrics.get(product.id) || { unitsSold: 0, revenue: 0, cost: 0, grossProfit: 0 },
+  }));
+}
+
+async function buildFinanceDashboard(rangeKey) {
+  const range = financeRange(rangeKey);
+  const paidWhere = {
+    paymentStatus: 'PAID',
+    status: { not: 'CANCELLED' },
+    ...(range.start ? { OR: [{ paidAt: { gte: range.start } }, { paidAt: null, createdAt: { gte: range.start } }] } : {}),
+  };
+  const [paidOrders, inventoryProducts] = await Promise.all([
+    prisma.order.findMany({
+      where: paidWhere,
+      select: {
+        id: true, total: true, subtotal: true, discountTotal: true, shippingTotal: true, paidAt: true, createdAt: true,
+        items: {
+          select: {
+            productId: true, productName: true, quantity: true, unitPrice: true, unitCost: true,
+            product: { select: { costPrice: true } },
+            variant: { select: { costPrice: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.product.findMany({
+      where: { status: { not: 'ARCHIVED' } },
+      select: { id: true, name: true, stock: true, price: true, costPrice: true, variants: { select: { stock: true, price: true, costPrice: true } } },
+    }),
+  ]);
+
+  let totalRevenue = 0;
+  let productRevenue = 0;
+  let shippingRevenue = 0;
+  let discounts = 0;
+  let cogs = 0;
+  let salesMissingCostUnits = 0;
+  const timelineMap = new Map();
+  const topMap = new Map();
+  for (const order of paidOrders) {
+    const orderTotal = decimalNumber(order.total);
+    const orderDiscount = decimalNumber(order.discountTotal);
+    const orderProductRevenue = Math.max(0, decimalNumber(order.subtotal) - orderDiscount);
+    totalRevenue += orderTotal;
+    productRevenue += orderProductRevenue;
+    shippingRevenue += decimalNumber(order.shippingTotal);
+    discounts += orderDiscount;
+    let orderCost = 0;
+    const subtotalBeforeDiscount = decimalNumber(order.subtotal);
+    const discountFactor = subtotalBeforeDiscount > 0 ? orderProductRevenue / subtotalBeforeDiscount : 1;
+    for (const item of order.items) {
+      const lineRevenue = decimalNumber(item.unitPrice) * item.quantity * discountFactor;
+      const itemUnitCost = orderItemCost(item);
+      const lineCost = itemUnitCost * item.quantity;
+      if (item.unitCost == null && item.variant?.costPrice == null && item.product?.costPrice == null) salesMissingCostUnits += item.quantity;
+      orderCost += lineCost;
+      const current = topMap.get(item.productId) || { productId: item.productId, name: item.productName, unitsSold: 0, revenue: 0, cost: 0, grossProfit: 0 };
+      current.unitsSold += item.quantity;
+      current.revenue += lineRevenue;
+      current.cost += lineCost;
+      current.grossProfit += lineRevenue - lineCost;
+      topMap.set(item.productId, current);
+    }
+    cogs += orderCost;
+    const date = order.paidAt || order.createdAt;
+    const key = date.toISOString().slice(0, 10);
+    const point = timelineMap.get(key) || { date: key, revenue: 0, cost: 0, profit: 0, orders: 0 };
+    point.revenue += orderProductRevenue;
+    point.cost += orderCost;
+    point.profit += orderProductRevenue - orderCost;
+    point.orders += 1;
+    timelineMap.set(key, point);
+  }
+
+  let inventoryInvestment = 0;
+  let inventoryRetailValue = 0;
+  let inventoryUnits = 0;
+  let inventoryMissingCostUnits = 0;
+  for (const product of inventoryProducts) {
+    if (product.variants.length) {
+      for (const variant of product.variants) {
+        inventoryUnits += variant.stock;
+        const hasCost = variant.costPrice != null || product.costPrice != null;
+        if (!hasCost) inventoryMissingCostUnits += variant.stock;
+        inventoryInvestment += variant.stock * decimalNumber(variant.costPrice ?? product.costPrice);
+        inventoryRetailValue += variant.stock * decimalNumber(variant.price ?? product.price);
+      }
+    } else {
+      inventoryUnits += product.stock;
+      if (product.costPrice == null) inventoryMissingCostUnits += product.stock;
+      inventoryInvestment += product.stock * decimalNumber(product.costPrice);
+      inventoryRetailValue += product.stock * decimalNumber(product.price);
+    }
+  }
+
+  const grossProfit = productRevenue - cogs;
+  return {
+    range: range.key,
+    paidOrderCount: paidOrders.length,
+    totalRevenue,
+    productRevenue,
+    shippingRevenue,
+    discounts,
+    cogs,
+    grossProfit,
+    grossMargin: productRevenue > 0 ? (grossProfit / productRevenue) * 100 : 0,
+    averageOrderValue: paidOrders.length ? totalRevenue / paidOrders.length : 0,
+    inventoryInvestment,
+    inventoryRetailValue,
+    inventoryPotentialProfit: inventoryRetailValue - inventoryInvestment,
+    inventoryUnits,
+    inventoryMissingCostUnits,
+    salesMissingCostUnits,
+    timeline: Array.from(timelineMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
+    topProducts: Array.from(topMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 8),
+  };
+}
+
 app.get('/', (_req, res) => {
   res.json({
     name: 'E-commerce API',
@@ -510,6 +684,17 @@ app.get('/api/payment-methods', asyncRoute(async (_req, res) => {
   res.json({ paymentMethods: methods.map(publicPaymentMethod) });
 }));
 
+app.get('/api/storefront/config', asyncRoute(async (_req, res) => {
+  const settings = await prisma.storefrontSettings.findUnique({ where: { id: 'primary' } });
+  res.json({ settings: publicStorefrontSettings(settings) });
+}));
+
+app.get('/api/content-pages/:slug', asyncRoute(async (req, res) => {
+  const page = await prisma.contentPage.findFirst({ where: { slug: req.params.slug, isPublished: true } });
+  if (!page) throw new AppError(404, 'Page not found.');
+  res.json({ page });
+}));
+
 app.get('/api/products', asyncRoute(async (req, res) => {
   const { page, limit, skip } = parsePagination(req.query);
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
@@ -679,6 +864,7 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
             productName: product.name,
             variantLabel: variant ? [variant.color, variant.size].filter(Boolean).join(' / ') : null,
             unitPrice,
+            unitCost: variant?.costPrice ?? product.costPrice ?? null,
             quantity: requested.quantity,
           })),
         },
@@ -836,20 +1022,20 @@ app.delete('/api/admin/media/:id', requireAdmin, asyncRoute(async (req, res) => 
   res.status(204).send();
 }));
 
-app.get('/api/admin/dashboard', requireAdmin, asyncRoute(async (_req, res) => {
-  const [productCount, activeProducts, inventoryRows, collectionCount, activeDiscounts, orderCount, revenue, recentMovements] = await prisma.$transaction([
+app.get('/api/admin/dashboard', requireAdmin, asyncRoute(async (req, res) => {
+  const [productCount, activeProducts, inventoryRows, collectionCount, activeDiscounts, orderCount, recentMovements, finance] = await Promise.all([
     prisma.product.count(),
     prisma.product.count({ where: { status: 'ACTIVE', isActive: true } }),
     prisma.product.findMany({ where: { status: { not: 'ARCHIVED' } }, select: { stock: true, lowStockThreshold: true, variants: { select: { stock: true, lowStockThreshold: true } } } }),
     prisma.collection.count(),
     prisma.discount.count({ where: { isActive: true } }),
     prisma.order.count(),
-    prisma.order.aggregate({ where: { paymentStatus: 'PAID' }, _sum: { total: true } }),
     prisma.inventoryMovement.findMany({
       take: 8,
       orderBy: { createdAt: 'desc' },
       include: { product: { select: { id: true, name: true } }, variant: { select: { id: true, sku: true, size: true, color: true } }, admin: { select: { name: true, email: true } } },
     }),
+    buildFinanceDashboard(typeof req.query.range === 'string' ? req.query.range : '30d'),
   ]);
   const inventoryState = (item) => {
     if (item.variants.length) {
@@ -870,10 +1056,62 @@ app.get('/api/admin/dashboard', requireAdmin, asyncRoute(async (_req, res) => {
       collectionCount,
       activeDiscounts,
       orderCount,
-      revenue: revenue._sum.total || 0,
+      revenue: finance.totalRevenue,
     },
+    finance,
     recentMovements,
   });
+}));
+
+app.get('/api/admin/storefront', requireAdmin, asyncRoute(async (_req, res) => {
+  const settings = await prisma.storefrontSettings.findUnique({ where: { id: 'primary' } });
+  res.json({ settings: publicStorefrontSettings(settings) });
+}));
+
+app.put('/api/admin/storefront', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(storefrontSettingsSchema, req.body);
+  const settings = await prisma.storefrontSettings.upsert({
+    where: { id: 'primary' },
+    create: { id: 'primary', ...body, updatedByAdminId: req.admin.id },
+    update: { ...body, updatedByAdminId: req.admin.id },
+  });
+  res.json({ settings: publicStorefrontSettings(settings) });
+}));
+
+app.get('/api/admin/content-pages', requireAdmin, asyncRoute(async (_req, res) => {
+  const pages = await prisma.contentPage.findMany({ orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }] });
+  res.json({ pages });
+}));
+
+app.post('/api/admin/content-pages', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(contentPageCreateSchema, req.body);
+  const page = await prisma.contentPage.create({
+    data: { ...body, slug: await uniqueSlugFor('contentPage', body.title, body.slug), heroImage: body.heroImage || null, sections: body.sections || [], updatedByAdminId: req.admin.id },
+  });
+  res.status(201).json({ page });
+}));
+
+async function updateContentPage(req, res) {
+  const body = validate(contentPageUpdateSchema, req.body);
+  const current = await prisma.contentPage.findUnique({ where: { id: req.params.id } });
+  if (!current) throw new AppError(404, 'Content page not found.');
+  const page = await prisma.contentPage.update({
+    where: { id: current.id },
+    data: {
+      ...body,
+      ...(body.title || body.slug ? { slug: await uniqueSlugFor('contentPage', body.title || current.title, body.slug || current.slug, current.id) } : {}),
+      ...(Object.prototype.hasOwnProperty.call(body, 'heroImage') ? { heroImage: body.heroImage || null } : {}),
+      ...(Object.prototype.hasOwnProperty.call(body, 'sections') ? { sections: body.sections || [] } : {}),
+      updatedByAdminId: req.admin.id,
+    },
+  });
+  res.json({ page });
+}
+app.put('/api/admin/content-pages/:id', requireAdmin, asyncRoute(updateContentPage));
+app.patch('/api/admin/content-pages/:id', requireAdmin, asyncRoute(updateContentPage));
+app.delete('/api/admin/content-pages/:id', requireAdmin, requireSuperadmin, asyncRoute(async (req, res) => {
+  await prisma.contentPage.delete({ where: { id: req.params.id } });
+  res.status(204).send();
 }));
 
 app.get('/api/admin/categories', requireAdmin, asyncRoute(async (_req, res) => {
@@ -998,7 +1236,8 @@ app.get('/api/admin/products', requireAdmin, asyncRoute(async (req, res) => {
     prisma.product.findMany({ where, include: productInclude, orderBy: { createdAt: 'desc' }, skip, take: limit }),
     prisma.product.count({ where }),
   ]);
-  res.json({ products, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } });
+  const enrichedProducts = await enrichProductsWithSales(products);
+  res.json({ products: enrichedProducts, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } });
 }));
 
 app.post('/api/admin/products', requireAdmin, asyncRoute(async (req, res) => {
@@ -1128,6 +1367,13 @@ async function updateProduct(req, res) {
 
 app.put('/api/admin/products/:id', requireAdmin, asyncRoute(updateProduct));
 app.patch('/api/admin/products/:id', requireAdmin, asyncRoute(updateProduct));
+app.delete('/api/admin/products/:id/permanent', requireAdmin, requireSuperadmin, asyncRoute(async (req, res) => {
+  const referenced = await prisma.orderItem.findFirst({ where: { productId: req.params.id }, select: { id: true } });
+  if (referenced) throw new AppError(409, 'Delete the related orders first, or archive this product to preserve sales history.');
+  await prisma.product.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+}));
+
 app.delete('/api/admin/products/:id', requireAdmin, asyncRoute(async (req, res) => {
   const product = await prisma.product.update({ where: { id: req.params.id }, data: { isActive: false, status: 'ARCHIVED' }, include: productInclude });
   res.json({ product });
@@ -1305,10 +1551,39 @@ app.get('/api/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
   res.json({ orders });
 }));
 
+app.get('/api/admin/orders/deleted', requireAdmin, requireSuperadmin, asyncRoute(async (_req, res) => {
+  const deletions = await prisma.orderDeletionLog.findMany({
+    take: 100,
+    orderBy: { deletedAt: 'desc' },
+    include: { deletedBy: { select: { name: true, email: true } } },
+  });
+  res.json({ deletions });
+}));
+
 app.get('/api/admin/orders/:id', requireAdmin, asyncRoute(async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) throw new AppError(404, 'Order not found.');
   res.json({ order });
+}));
+
+app.delete('/api/admin/orders/:id', requireAdmin, requireSuperadmin, asyncRoute(async (req, res) => {
+  const body = validate(orderDeleteSchema, req.body);
+  const current = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
+  if (!current) throw new AppError(404, 'Order not found.');
+  const shouldRestoreInventory = ['PENDING', 'PAID'].includes(current.status);
+  await prisma.$transaction(async (tx) => {
+    if (shouldRestoreInventory) await restoreOrderInventory(tx, current);
+    await tx.orderDeletionLog.create({
+      data: {
+        orderId: current.id,
+        reason: body.reason,
+        snapshot: JSON.parse(JSON.stringify(current)),
+        deletedByAdminId: req.admin.id,
+      },
+    });
+    await tx.order.delete({ where: { id: current.id } });
+  });
+  res.status(204).send();
 }));
 
 app.patch('/api/admin/orders/:id/payment', requireAdmin, asyncRoute(async (req, res) => {

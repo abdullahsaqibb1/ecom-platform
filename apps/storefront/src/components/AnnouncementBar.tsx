@@ -1,3 +1,8 @@
+import { Link } from 'react-router-dom';
+import { useStorefrontConfig } from '../lib/storefront-config';
+
 export function AnnouncementBar() {
-  return <div className="announcement">Complimentary delivery across Pakistan on orders above Rs. 2,500</div>;
+  const { settings } = useStorefrontConfig();
+  if (!settings.announcementText) return null;
+  return <div className="announcement"><span>{settings.announcementText}</span>{settings.announcementLinkUrl && settings.announcementLinkLabel ? <Link to={settings.announcementLinkUrl}>{settings.announcementLinkLabel}</Link> : null}</div>;
 }

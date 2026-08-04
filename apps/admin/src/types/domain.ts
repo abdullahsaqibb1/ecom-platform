@@ -94,6 +94,14 @@ export interface Product {
   createdAt?: string;
   variants?: ProductVariant[];
   updatedAt?: string;
+  salesMetrics?: ProductSalesMetrics;
+}
+
+export interface ProductSalesMetrics {
+  unitsSold: number;
+  revenue: number;
+  cost: number;
+  grossProfit: number;
 }
 
 export type InventoryMovementType = 'INITIAL' | 'ADJUSTMENT' | 'SALE' | 'CANCELLATION' | 'RETURN' | 'DAMAGE' | 'RESTOCK';
@@ -158,6 +166,7 @@ export interface OrderItem {
   id: string;
   quantity: number;
   unitPrice?: number | string;
+  unitCost?: number | string | null;
   price?: number | string;
   product?: Pick<Product, 'id' | 'name' | 'images'> | null;
   productName?: string;
@@ -199,6 +208,83 @@ export interface Order {
   deliveredAt?: string | null;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface FinanceTimelinePoint {
+  date: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  orders: number;
+}
+
+export interface ProductProfitability {
+  productId: string;
+  name: string;
+  unitsSold: number;
+  revenue: number;
+  cost: number;
+  grossProfit: number;
+}
+
+export interface FinanceDashboard {
+  range: '7d' | '30d' | '90d' | '365d' | 'all';
+  paidOrderCount: number;
+  totalRevenue: number;
+  productRevenue: number;
+  shippingRevenue: number;
+  discounts: number;
+  cogs: number;
+  grossProfit: number;
+  grossMargin: number;
+  averageOrderValue: number;
+  inventoryInvestment: number;
+  inventoryRetailValue: number;
+  inventoryPotentialProfit: number;
+  inventoryUnits: number;
+  inventoryMissingCostUnits: number;
+  salesMissingCostUnits: number;
+  timeline: FinanceTimelinePoint[];
+  topProducts: ProductProfitability[];
+}
+
+export interface StorefrontLink { label: string; href: string; isVisible?: boolean }
+export interface StorefrontSettings {
+  id?: string;
+  siteName: string;
+  logoUrl?: string | null;
+  logoAlt?: string | null;
+  faviconUrl?: string | null;
+  announcementText?: string | null;
+  announcementLinkLabel?: string | null;
+  announcementLinkUrl?: string | null;
+  supportEmail?: string | null;
+  supportPhone?: string | null;
+  navigation: StorefrontLink[];
+  homepage: {
+    hero: { eyebrow: string; heading: string; body: string; ctaLabel: string; ctaUrl: string; imageUrl: string; visualType: 'EARBUDS_ANIMATION' | 'IMAGE' };
+    productSections: Array<{ title: string; collectionSlug: string; limit: number }>;
+    editorialPanels: Array<{ eyebrow: string; heading: string; ctaLabel: string; ctaUrl: string; imageUrl: string }>;
+    statement: { eyebrow: string; heading: string; ctaLabel: string; ctaUrl: string };
+    mosaic: Array<{ label: string; href: string; imageUrl: string }>;
+  };
+  footer: {
+    newsletterEyebrow: string; newsletterHeading: string; brandDescription: string;
+    columns: Array<{ heading: string; links: StorefrontLink[] }>;
+    supportHeading: string; supportLines: string[]; legalLinks: StorefrontLink[];
+  };
+  theme: { paper: string; ink: string; muted: string; soft: string; cream: string };
+  updatedAt?: string;
+}
+
+export interface ContentPageRecord {
+  id: string; slug: string; title: string; eyebrow?: string | null; body: string; heroImage?: string | null;
+  sections?: Array<{ heading: string; body: string; imageUrl: string }> | null;
+  seoTitle?: string | null; seoDescription?: string | null; isPublished: boolean; sortOrder: number; createdAt?: string; updatedAt?: string;
+}
+
+export interface OrderDeletionLog {
+  id: string; orderId: string; reason: string; snapshot: Order; deletedAt: string; deletedBy?: Pick<Admin, 'name' | 'email'> | null;
 }
 
 export interface DashboardMetrics {

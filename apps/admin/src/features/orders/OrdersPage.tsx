@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, ExternalLink, Eye, PackageCheck, Search, Truck } from 'lucide-react';
+import { CreditCard, ExternalLink, Eye, History, PackageCheck, Search, Trash2, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
@@ -9,7 +9,8 @@ import { Modal } from '../../components/Modal';
 import { PageHeader } from '../../components/PageHeader';
 import { ADMIN_API, apiRequest, unwrapEntity, unwrapList } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/format';
-import type { Order, OrderStatus, PaymentStatus } from '../../types/domain';
+import type { Order, OrderDeletionLog, OrderStatus, PaymentStatus } from '../../types/domain';
+import { useAuth } from '../auth/AuthContext';
 
 const statuses: OrderStatus[] = ['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
 const allowedNext: Record<OrderStatus, OrderStatus[]> = {
@@ -52,10 +53,13 @@ function toLocalDateTime(value?: string | null) {
 
 export function OrdersPage() {
   const queryClient = useQueryClient();
+  const { admin } = useAuth();
   const [status, setStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Order | null>(null);
   const [shipment, setShipment] = useState<ShipmentForm>(emptyShipment);
+  const [deleting, setDeleting] = useState<Order | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
 
   useEffect(() => {
     setShipment(selected ? {
@@ -72,6 +76,12 @@ export function OrdersPage() {
       await apiRequest(`${ADMIN_API.orders}${status === 'ALL' ? '' : `?status=${status}`}`),
       ['orders'],
     ),
+  });
+
+  const deletedQuery = useQuery({
+    queryKey: ['orders', 'deleted'],
+    enabled: admin?.role === 'SUPERADMIN',
+    queryFn: async () => unwrapList<OrderDeletionLog>(await apiRequest(ADMIN_API.deletedOrders), ['deletions']),
   });
 
   const updateMutation = useMutation({
@@ -116,6 +126,21 @@ export function OrdersPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => apiRequest(ADMIN_API.orderDelete(id), { method: 'DELETE', body: { reason } }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+      ]);
+      setSelected(null);
+      setDeleting(null);
+      setDeleteReason('');
+    },
+  });
+
   if (query.isLoading) return <LoadingState label="Loading orders" />;
   const orders = (query.data ?? []).filter((order) => {
     const customer = order.user?.email ?? order.customer?.email ?? '';
@@ -140,7 +165,7 @@ export function OrdersPage() {
         <td><Badge tone={paymentTone(order.paymentStatus)}>{order.paymentStatus ?? 'UNPAID'}</Badge><span className="table-subline">{order.paymentMethodCode ?? order.paymentProvider ?? '—'}</span></td>
         <td><Badge tone={tone(order.status)}>{order.status}</Badge></td>
         <td>{formatDate(order.createdAt)}</td>
-        <td><button className="icon-button" onClick={() => setSelected(order)} title="View order"><Eye size={17} /></button></td>
+        <td><div className="row-actions"><button className="icon-button" onClick={() => setSelected(order)} title="View order"><Eye size={17} /></button>{admin?.role === 'SUPERADMIN' ? <button className="icon-button icon-button--danger" onClick={() => { setDeleting(order); setDeleteReason(''); }} title="Delete order"><Trash2 size={16} /></button> : null}</div></td>
       </tr>)}</tbody></table></div> : <EmptyState icon={PackageCheck} title="No matching orders" description="No orders match the selected status or search." />}
     </section>
 
@@ -161,7 +186,7 @@ export function OrdersPage() {
         {selected.paymentProvider !== 'safepay' ? <div className="manual-payment-panel"><CreditCard size={19} /><div><strong>Manual payment control</strong><span>{selected.paymentMethodCode === 'cod' ? 'Cash-on-delivery orders can ship unpaid and are marked paid when delivered.' : 'Confirm an offline payment only after checking the bank or payment record.'}</span></div><div>{selected.paymentStatus !== 'PAID' ? <Button size="sm" isLoading={paymentMutation.isPending} onClick={() => paymentMutation.mutate({ id: selected.id, paymentStatus: 'PAID' })}>Mark payment received</Button> : <Badge tone="success">Payment confirmed</Badge>}</div></div> : null}
         {paymentMutation.error ? <div className="form-alert">{paymentMutation.error.message}</div> : null}
 
-        <div className="order-items">{selected.items?.map((item) => <div key={item.id}><span className="product-thumb">{item.product?.images?.[0] ? <img src={item.product.images[0]} alt="" /> : 'P'}</span><div><strong>{item.product?.name ?? item.productName ?? 'Product'}</strong><span>{item.variantLabel || `Quantity ${item.quantity}`}</span><span>Quantity {item.quantity}</span></div><strong>{formatCurrency(Number(item.unitPrice ?? item.price ?? 0) * item.quantity)}</strong></div>)}</div>
+        <div className="order-items">{selected.items?.map((item) => { const revenue = Number(item.unitPrice ?? item.price ?? 0) * item.quantity; const cost = Number(item.unitCost ?? 0) * item.quantity; return <div key={item.id}><span className="product-thumb">{item.product?.images?.[0] ? <img src={item.product.images[0]} alt="" /> : 'P'}</span><div><strong>{item.product?.name ?? item.productName ?? 'Product'}</strong><span>{item.variantLabel || `Quantity ${item.quantity}`}</span><span>Quantity {item.quantity} · Purchase cost {formatCurrency(cost)}</span></div><div className="order-line-finance"><strong>{formatCurrency(revenue)}</strong><small>Profit {formatCurrency(revenue - cost)}</small></div></div>; })}</div>
 
         {selected.status === 'PAID' || selected.status === 'SHIPPED' || (selected.status === 'PENDING' && selected.paymentMethodCode === 'cod') ? <form className="shipment-panel" onSubmit={(event) => { event.preventDefault(); shipmentMutation.mutate({ id: selected.id, values: shipment }); }}>
           <div className="shipment-panel__heading"><Truck size={19} /><div><strong>{selected.status === 'SHIPPED' ? 'Shipment details' : 'Create shipment'}</strong><span>Saving a paid order as shipped sends the customer a tracking email.</span></div></div>
@@ -179,8 +204,15 @@ export function OrdersPage() {
 
         <div className="status-actions"><div><strong>Order status</strong><span>Online payments are webhook-controlled; manual methods can be confirmed by authorized staff. Shipping requires carrier and tracking details.</span></div>{allowedNext[selected.status].length ? <div>{allowedNext[selected.status].map((next) => <Button key={next} variant={next === 'CANCELLED' ? 'danger' : 'primary'} isLoading={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selected.id, status: next })}>Mark {next.toLowerCase()}</Button>)}</div> : <Badge tone={tone(selected.status)}>{selected.status === 'PAID' ? 'Add shipment details above' : 'No direct transition'}</Badge>}</div>
         {updateMutation.error ? <div className="form-alert">{updateMutation.error.message}</div> : null}
+        {admin?.role === 'SUPERADMIN' ? <div className="danger-zone"><div><strong>Permanent order deletion</strong><span>Deletes the order and its item references so archived products can later be removed. A private audit snapshot is retained. Pending or paid-but-unshipped stock is restored automatically.</span></div><Button variant="danger" size="sm" onClick={() => { setDeleting(selected); setDeleteReason(''); }}><Trash2 size={15} /> Delete order</Button></div> : null}
         {selected.shippingAddress ? <div className="address-box"><strong>Shipping information</strong><pre>{typeof selected.shippingAddress === 'string' ? selected.shippingAddress : JSON.stringify(selected.shippingAddress, null, 2)}</pre></div> : null}
       </div> : null}
+    </Modal>
+
+    {admin?.role === 'SUPERADMIN' && (deletedQuery.data?.length ?? 0) > 0 ? <section className="panel deleted-orders-panel"><header className="panel__header"><div><h2>Deletion history</h2><p>Permanent deletions remain auditable without continuing to block product records.</p></div><History size={18} /></header><div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Reason</th><th>Deleted by</th><th>Date</th></tr></thead><tbody>{deletedQuery.data?.slice(0, 20).map((entry) => <tr key={entry.id}><td><strong>#{entry.orderId.slice(-8).toUpperCase()}</strong></td><td>{entry.snapshot.user?.email ?? entry.snapshot.customer?.email ?? '—'}</td><td>{formatCurrency(entry.snapshot.total ?? entry.snapshot.totalAmount ?? 0)}</td><td>{entry.reason}</td><td>{entry.deletedBy?.name ?? entry.deletedBy?.email ?? 'Administrator'}</td><td>{formatDate(entry.deletedAt)}</td></tr>)}</tbody></table></div></section> : null}
+
+    <Modal isOpen={Boolean(deleting)} onClose={() => { if (!deleteMutation.isPending) { setDeleting(null); setDeleteReason(''); } }} title="Delete order permanently" description={deleting ? `Order #${deleting.id.slice(-8).toUpperCase()} will be removed from active records.` : ''}>
+      <div className="delete-order-dialog"><div className="delete-warning"><Trash2 size={20} /><div><strong>This cannot be undone from the dashboard.</strong><span>An audit snapshot is retained. This action does not issue a payment-provider refund.</span></div></div><label className="field"><span>Deletion reason</span><textarea rows={4} value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="Duplicate test order, incorrect imported record…" /></label>{deleteMutation.error ? <div className="form-alert">{deleteMutation.error.message}</div> : null}<div className="modal-actions"><Button variant="secondary" onClick={() => setDeleting(null)}>Cancel</Button><Button variant="danger" isLoading={deleteMutation.isPending} disabled={deleteReason.trim().length < 3} onClick={() => deleting && deleteMutation.mutate({ id: deleting.id, reason: deleteReason.trim() })}>Delete permanently</Button></div></div>
     </Modal>
   </div>;
 }
