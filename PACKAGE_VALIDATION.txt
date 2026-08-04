@@ -1,17 +1,30 @@
-PACKAGE VALIDATION
+PACKAGE VALIDATION — LAUNCH COMMERCE SPRINT
 
 Completed checks:
-- Required monorepo files are present.
-- Storefront/admin API path constants match implemented backend routes.
-- All 47 frontend TypeScript/TSX source files parsed successfully for syntax.
-- Backend JavaScript files passed node --check.
-- Admin and customer browser storage keys are distinct.
-- Admin and customer JWT secrets are distinct environment variables.
-- Prisma migration and idempotent seed are included.
-- Vercel SPA rewrite files are included for both Vite frontends.
-- Express-to-Vercel rewrite file is included for the API.
+- Required storefront, admin, backend, migration, documentation, and Vercel files are present.
+- Launch implementation markers were verified for Cloudinary uploads, Safepay checkout/webhooks, shipment tracking, and Resend email.
+- All 48 frontend TypeScript/TSX source files parsed successfully for syntax using TypeScript 5.8.3.
+- All backend, Prisma script, and package JavaScript files passed `node --check`.
+- Safepay HMAC-SHA512 signature validation passed for current and previous webhook secrets.
+- Safepay prefixed signature handling, bad-signature rejection, webhook payload parsing, and PKR minor-unit conversion tests passed.
+- Webhook event persistence and notification/media Prisma models are included in an additive production migration.
+- Storefront and admin route/API markers match implemented backend paths.
+- Vercel SPA rewrites remain included for both Vite frontends.
+- Express-to-Vercel routing remains included for the backend.
+- No provider credentials, database connection strings, or live API keys were added to the package.
+
+Archive checks performed after packaging:
+- ZIP integrity test.
+- SHA-256 checksum generation.
 
 Not executed in this workspace:
-- Full npm dependency installation and production builds, because the workspace package registry did not contain required public packages and external npm downloads timed out.
+- Full npm dependency installation and production builds. The workspace package registry did not contain all public dependencies, and direct public-registry installation timed out.
+- A live Cloudinary upload, Safepay sandbox transaction/webhook, or Resend delivery. Those require the user's provider accounts and credentials.
 
-Vercel will install dependencies from the public npm registry during deployment. Build settings are documented in DEPLOY_TO_VERCEL.md.
+Known security issue intentionally left unchanged because this sprint started at audit items 2–6:
+- The legacy seed/reset scripts and documentation still contain the fallback admin credentials `admin@store.com` / `Admin@12345` when seed environment variables are missing. Rotate the existing admin password and complete audit item 1 before public launch.
+
+Known operational limitations outside this sprint:
+- Abandoned Safepay checkouts can keep inventory reserved until an operator cancels the pending order; automatic expiry/release is not implemented.
+- Returns, refund initiation, partial refund handling, and customer self-service cancellation are not implemented.
+- No live payment can be accepted until Safepay production approval and production keys are configured.

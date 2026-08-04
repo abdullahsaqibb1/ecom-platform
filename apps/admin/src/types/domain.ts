@@ -42,12 +42,8 @@ export interface Product {
   updatedAt?: string;
 }
 
-export type OrderStatus =
-  | 'PENDING'
-  | 'PAID'
-  | 'SHIPPED'
-  | 'DELIVERED'
-  | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type PaymentStatus = 'UNPAID' | 'PROCESSING' | 'PAID' | 'FAILED' | 'REFUNDED';
 
 export interface OrderItem {
   id: string;
@@ -56,6 +52,7 @@ export interface OrderItem {
   price?: number | string;
   product?: Pick<Product, 'id' | 'name' | 'images'> | null;
   productName?: string;
+  variantLabel?: string | null;
 }
 
 export interface CustomerSummary {
@@ -67,12 +64,25 @@ export interface CustomerSummary {
 export interface Order {
   id: string;
   status: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  paymentProvider?: string | null;
+  paymentReference?: string | null;
+  paymentTracker?: string | null;
+  subtotal?: number | string;
+  shippingTotal?: number | string;
   total?: number | string;
   totalAmount?: number | string;
   user?: CustomerSummary | null;
   customer?: CustomerSummary | null;
   items: OrderItem[];
   shippingAddress?: Record<string, unknown> | string | null;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  estimatedDelivery?: string | null;
+  paidAt?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
   createdAt: string;
   updatedAt?: string;
 }

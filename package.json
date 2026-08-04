@@ -9,7 +9,8 @@
     "dev:storefront": "npm --prefix apps/storefront run dev -- --port 5173",
     "dev:admin": "npm --prefix apps/admin run dev -- --port 5174",
     "build:storefront": "npm --prefix apps/storefront run build",
-    "build:admin": "npm --prefix apps/admin run build"
+    "build:admin": "npm --prefix apps/admin run build",
+    "test:launch": "node scripts/test-launch-sprint.js"
   },
   "engines": {
     "node": ">=20"

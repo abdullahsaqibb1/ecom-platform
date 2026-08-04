@@ -13,6 +13,10 @@ export const ADMIN_API = {
   orders: '/api/admin/orders',
   order: (id: string) => `/api/admin/orders/${id}`,
   orderStatus: (id: string) => `/api/admin/orders/${id}/status`,
+  orderShipment: (id: string) => `/api/admin/orders/${id}/shipment`,
+  uploadSignature: '/api/admin/uploads/signature',
+  media: '/api/admin/media',
+  mediaAsset: (id: string) => `/api/admin/media/${id}`,
   admins: '/api/admin/admins',
 } as const;
 
@@ -139,4 +143,77 @@ export function unwrapPaginated<T>(
   );
 
   return { items, page, limit, total, totalPages };
+}
+
+
+export interface UploadedMediaAsset {
+  id: string;
+  publicId: string;
+  secureUrl: string;
+  format?: string | null;
+  width?: number | null;
+  height?: number | null;
+  bytes?: number | null;
+}
+
+interface UploadSignature {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  folder: string;
+  signature: string;
+  uploadUrl: string;
+}
+
+interface CloudinaryUploadResponse {
+  public_id: string;
+  secure_url: string;
+  format?: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+  error?: { message?: string };
+}
+
+export async function uploadProductImage(file: File): Promise<UploadedMediaAsset> {
+  if (!file.type.startsWith('image/')) {
+    throw new ApiError('Choose an image file.', 400);
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    throw new ApiError('Images must be 12 MB or smaller.', 400);
+  }
+
+  const signature = await apiRequest<UploadSignature>(ADMIN_API.uploadSignature, {
+    method: 'POST',
+  });
+  const form = new FormData();
+  form.append('file', file);
+  form.append('api_key', signature.apiKey);
+  form.append('timestamp', String(signature.timestamp));
+  form.append('signature', signature.signature);
+  form.append('folder', signature.folder);
+
+  let response: Response;
+  try {
+    response = await fetch(signature.uploadUrl, { method: 'POST', body: form });
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : 'Unable to upload the image.', 0);
+  }
+  const uploaded = await response.json() as CloudinaryUploadResponse;
+  if (!response.ok || !uploaded.secure_url || !uploaded.public_id) {
+    throw new ApiError(uploaded.error?.message || 'Cloudinary rejected the image upload.', response.status, uploaded);
+  }
+
+  const payload = await apiRequest<unknown>(ADMIN_API.media, {
+    method: 'POST',
+    body: {
+      publicId: uploaded.public_id,
+      secureUrl: uploaded.secure_url,
+      format: uploaded.format ?? null,
+      width: uploaded.width ?? null,
+      height: uploaded.height ?? null,
+      bytes: uploaded.bytes ?? null,
+    },
+  });
+  return unwrapEntity<UploadedMediaAsset>(payload, ['asset']);
 }

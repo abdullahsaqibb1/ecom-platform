@@ -54,19 +54,39 @@ export interface OrderItem {
   price?: number | string;
   product?: Pick<Product, 'id' | 'name' | 'images'> | null;
   productName?: string;
-  variantLabel?: string;
+  variantLabel?: string | null;
 }
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type PaymentStatus = 'UNPAID' | 'PROCESSING' | 'PAID' | 'FAILED' | 'REFUNDED';
 
 export interface Order {
   id: string;
   status: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  paymentProvider?: string | null;
+  subtotal?: number | string;
+  shippingTotal?: number | string;
   total?: number | string;
   totalAmount?: number | string;
   items: OrderItem[];
   createdAt: string;
   shippingAddress?: Record<string, unknown> | string | null;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  estimatedDelivery?: string | null;
+  paidAt?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+}
+
+export interface OrderCreationResult {
+  order: Order;
+  payment: {
+    provider: string;
+    checkoutUrl: string | null;
+  };
 }
 
 export interface Paginated<T> {

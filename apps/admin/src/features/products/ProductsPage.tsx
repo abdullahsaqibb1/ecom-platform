@@ -23,7 +23,7 @@ export function ProductsPage() {
   const saveMutation = useMutation({
     mutationFn: ({ values, product }: { values: ProductFormValues; product?: Product | null }) => apiRequest(product ? ADMIN_API.product(product.id) : ADMIN_API.products, {
       method: product ? 'PUT' : 'POST',
-      body: { ...values, categoryId: values.categoryId || null, images: values.images.map((image) => image.url).filter(Boolean), variants: values.variants.map((variant) => ({ ...variant, size: variant.size || null, color: variant.color || null, image: variant.image || null, price: variant.price ?? null })) },
+      body: { ...values, categoryId: values.categoryId || null, images: values.images.map((image) => image.url.trim()).filter(Boolean), variants: values.variants.map((variant) => ({ ...(variant.id ? { id: variant.id } : {}), sku: variant.sku.trim(), size: variant.size?.trim() || null, color: variant.color?.trim() || null, image: variant.image?.trim() || null, price: variant.price ?? null, stock: variant.stock })) },
     }),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['products'] }); setEditing(undefined); },
   });

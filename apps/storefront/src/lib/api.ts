@@ -1,5 +1,5 @@
 import { mockCategories, mockProducts } from '../data/mock';
-import type { Category, Customer, Order, Paginated, Product } from '../types/domain';
+import type { Category, Customer, Order, OrderCreationResult, Paginated, Product } from '../types/domain';
 import { customerTokenStorage } from './storage';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -141,6 +141,14 @@ export async function getOrders(): Promise<Order[]> {
   return unwrapList<Order>(await request<unknown>(STORE_API.orders, { auth: true }), ['orders']);
 }
 
-export async function createOrder(body: unknown): Promise<Order> {
-  return unwrapEntity<Order>(await request<unknown>(STORE_API.orders, { method: 'POST', body, auth: true }), ['order']);
+export async function createOrder(body: unknown): Promise<OrderCreationResult> {
+  const payload = await request<unknown>(STORE_API.orders, { method: 'POST', body, auth: true });
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiError('The order API returned an invalid response.', 502, payload);
+  }
+  const record = payload as Record<string, unknown>;
+  return {
+    order: unwrapEntity<Order>(payload, ['order']),
+    payment: (record.payment ?? { provider: 'manual', checkoutUrl: null }) as OrderCreationResult['payment'],
+  };
 }

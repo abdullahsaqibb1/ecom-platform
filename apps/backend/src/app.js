@@ -25,7 +25,17 @@ const {
   productUpdateSchema,
   orderCreateSchema,
   orderStatusSchema,
+  shipmentSchema,
+  mediaCreateSchema,
 } = require('./schemas');
+const {
+  createSafepayCheckout,
+  parseSafepayWebhook,
+  toLowestDenomination,
+  verifySafepayWebhook,
+} = require('./safepay');
+const { emailEvents } = require('./email');
+const { createUploadSignature, destroyAsset } = require('./cloudinary');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -55,7 +65,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400,
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({
+  limit: '1mb',
+  verify(req, _res, buffer) {
+    if (req.originalUrl === '/api/webhooks/safepay') {
+      req.rawBody = Buffer.from(buffer);
+    }
+  },
+}));
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -147,6 +164,48 @@ function parsePagination(query) {
   return { page, limit, skip: (page - 1) * limit };
 }
 
+function decimalFromEnv(name, fallback) {
+  const value = process.env[name]?.trim() || String(fallback);
+  try {
+    const decimal = new Prisma.Decimal(value);
+    if (decimal.isNegative()) throw new Error('negative');
+    return decimal;
+  } catch {
+    throw new AppError(500, `${name} must be a non-negative number.`);
+  }
+}
+
+function storefrontBaseUrl() {
+  return (process.env.STOREFRONT_URL || 'https://cosmictech.digital').trim().replace(/\/$/, '');
+}
+
+function paymentProvider() {
+  return String(process.env.PAYMENT_PROVIDER || 'manual').trim().toLowerCase();
+}
+
+async function restoreOrderInventory(tx, order) {
+  for (const item of order.items) {
+    await tx.product.update({
+      where: { id: item.productId },
+      data: { stock: { increment: item.quantity } },
+    });
+    if (item.variantId) {
+      await tx.productVariant.update({
+        where: { id: item.variantId },
+        data: { stock: { increment: item.quantity } },
+      });
+    }
+  }
+}
+
+async function attemptSideEffect(promise) {
+  try {
+    await promise;
+  } catch (error) {
+    console.error('Side effect failed:', error);
+  }
+}
+
 app.get('/', (_req, res) => {
   res.json({
     name: 'E-commerce API',
@@ -160,6 +219,117 @@ app.get('/', (_req, res) => {
 app.get('/health', asyncRoute(async (_req, res) => {
   await prisma.$queryRaw`SELECT 1`;
   res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+}));
+
+// Safepay is the source of truth for payment completion. A browser redirect never marks an order paid.
+app.post('/api/webhooks/safepay', asyncRoute(async (req, res) => {
+  const signature = req.get('x-sfpy-signature');
+  if (!verifySafepayWebhook(req.rawBody, signature, req.body)) {
+    throw new AppError(401, 'Invalid Safepay webhook signature.');
+  }
+
+  const event = parseSafepayWebhook(req.body);
+  const supportedEvents = new Set(['payment.succeeded', 'payment.failed', 'payment.refunded']);
+  if (!supportedEvents.has(event.eventType)) {
+    return res.json({ received: true, ignored: true, eventType: event.eventType });
+  }
+
+  const configuredApiKey = process.env.SAFEPAY_API_KEY?.trim();
+  if (configuredApiKey && event.merchantApiKey && event.merchantApiKey !== configuredApiKey) {
+    throw new AppError(400, 'Safepay merchant key does not match this store.');
+  }
+
+  let current = null;
+  if (event.orderId && isUuid(event.orderId)) {
+    current = await prisma.order.findUnique({
+      where: { id: event.orderId },
+      include: orderInclude,
+    });
+  }
+  if (!current && event.tracker) {
+    current = await prisma.order.findFirst({
+      where: { paymentTracker: event.tracker },
+      include: orderInclude,
+    });
+  }
+  if (!current) throw new AppError(404, 'Webhook order was not found.');
+
+  if (event.outcome === 'PAID') {
+    if (event.amountMinor == null) {
+      throw new AppError(400, 'Safepay success event is missing the charged amount.');
+    }
+    if (!/^[0-9]+$/.test(event.amountMinor)
+      || BigInt(event.amountMinor) !== BigInt(toLowestDenomination(current.total))) {
+      throw new AppError(400, 'Safepay amount does not match the order total.');
+    }
+    if (event.currency !== 'PKR') {
+      throw new AppError(400, 'Safepay currency does not match this store.');
+    }
+  }
+
+  let duplicate = false;
+  let order = current;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      await tx.paymentEvent.create({
+        data: {
+          orderId: current.id,
+          provider: 'safepay',
+          eventId: event.eventId,
+          eventType: event.eventType,
+          payload: event.payload,
+        },
+      });
+
+      if (event.outcome === 'PAID' && current.paymentStatus !== 'PAID') {
+        return tx.order.update({
+          where: { id: current.id },
+          data: {
+            status: current.status === 'PENDING' ? 'PAID' : current.status,
+            paymentStatus: 'PAID',
+            paymentProvider: 'safepay',
+            paymentReference: event.eventId,
+            paymentTracker: event.tracker || current.paymentTracker,
+            paidAt: current.paidAt || new Date(),
+          },
+          include: orderInclude,
+        });
+      }
+
+      if (event.outcome === 'REFUNDED' && current.paymentStatus !== 'REFUNDED') {
+        return tx.order.update({
+          where: { id: current.id },
+          data: {
+            paymentStatus: 'REFUNDED',
+            paymentReference: event.eventId,
+            paymentTracker: event.tracker || current.paymentTracker,
+          },
+          include: orderInclude,
+        });
+      }
+
+      // A failed attempt is recorded but does not close the order: Safepay lets the shopper retry
+      // the same hosted checkout session and can send multiple payment.failed events per tracker.
+      return current;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      duplicate = true;
+      order = await prisma.order.findUnique({ where: { id: current.id }, include: orderInclude });
+    } else {
+      throw error;
+    }
+  }
+
+  if (event.outcome === 'PAID' && order) {
+    await attemptSideEffect(emailEvents.paymentConfirmed(order));
+  }
+  return res.json({
+    received: true,
+    duplicate,
+    eventType: event.eventType,
+    outcome: event.outcome,
+  });
 }));
 
 // Customer authentication: customer tokens are signed with the customer-only secret.
@@ -241,12 +411,17 @@ app.get('/api/products/:idOrSlug', asyncRoute(async (req, res) => {
   res.json({ product });
 }));
 
-// Customer order creation: prices and inventory are resolved only on the server.
+// Customer order creation: prices, delivery, and inventory are resolved only on the server.
 app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
   const body = validate(orderCreateSchema, req.body);
-  const order = await prisma.$transaction(async (tx) => {
+  const provider = paymentProvider();
+  if (!['manual', 'safepay'].includes(provider)) {
+    throw new AppError(500, 'PAYMENT_PROVIDER must be manual or safepay.');
+  }
+
+  let order = await prisma.$transaction(async (tx) => {
     const prepared = [];
-    let total = new Prisma.Decimal(0);
+    let subtotal = new Prisma.Decimal(0);
 
     for (const requested of body.items) {
       const product = await tx.product.findUnique({
@@ -269,7 +444,7 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
       }
 
       const unitPrice = variant?.price || product.price;
-      total = total.plus(unitPrice.mul(requested.quantity));
+      subtotal = subtotal.plus(unitPrice.mul(requested.quantity));
       prepared.push({ product, variant, requested, unitPrice });
     }
 
@@ -280,24 +455,29 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
           data: { stock: { decrement: item.requested.quantity } },
         });
         if (changedVariant.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
-        const changedProduct = await tx.product.updateMany({
-          where: { id: item.product.id, stock: { gte: item.requested.quantity } },
-          data: { stock: { decrement: item.requested.quantity } },
-        });
-        if (changedProduct.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
-      } else {
-        const changedProduct = await tx.product.updateMany({
-          where: { id: item.product.id, stock: { gte: item.requested.quantity } },
-          data: { stock: { decrement: item.requested.quantity } },
-        });
-        if (changedProduct.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
       }
+      const changedProduct = await tx.product.updateMany({
+        where: { id: item.product.id, stock: { gte: item.requested.quantity } },
+        data: { stock: { decrement: item.requested.quantity } },
+      });
+      if (changedProduct.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
     }
+
+    const freeShippingThreshold = decimalFromEnv('FREE_SHIPPING_THRESHOLD', 2500);
+    const flatShippingRate = decimalFromEnv('FLAT_SHIPPING_RATE', 300);
+    const shippingTotal = subtotal.greaterThanOrEqualTo(freeShippingThreshold)
+      ? new Prisma.Decimal(0)
+      : flatShippingRate;
+    const total = subtotal.plus(shippingTotal);
 
     return tx.order.create({
       data: {
         userId: req.customer.id,
         status: 'PENDING',
+        paymentStatus: provider === 'safepay' ? 'PROCESSING' : 'UNPAID',
+        paymentProvider: provider,
+        subtotal,
+        shippingTotal,
         total,
         shippingAddress: body.shippingAddress,
         items: {
@@ -315,7 +495,42 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
     });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  res.status(201).json({ order });
+  let checkoutUrl = null;
+  if (provider === 'safepay') {
+    try {
+      const storeUrl = storefrontBaseUrl();
+      const payment = await createSafepayCheckout({
+        amount: order.total,
+        orderId: order.id,
+        cancelUrl: `${storeUrl}/checkout/cancelled?order=${order.id}`,
+        redirectUrl: `${storeUrl}/checkout/success?order=${order.id}`,
+      });
+      checkoutUrl = payment.checkoutUrl;
+      order = await prisma.order.update({
+        where: { id: order.id },
+        data: { paymentReference: payment.tracker, paymentTracker: payment.tracker },
+        include: orderInclude,
+      });
+    } catch (error) {
+      await prisma.$transaction(async (tx) => {
+        const failed = await tx.order.findUnique({ where: { id: order.id }, include: { items: true } });
+        if (failed && failed.status === 'PENDING') {
+          await restoreOrderInventory(tx, failed);
+          await tx.order.update({
+            where: { id: failed.id },
+            data: { status: 'CANCELLED', paymentStatus: 'FAILED' },
+          });
+        }
+      });
+      throw error;
+    }
+  }
+
+  await attemptSideEffect(emailEvents.orderPlaced(order, checkoutUrl));
+  res.status(201).json({
+    order,
+    payment: { provider, checkoutUrl },
+  });
 }));
 
 app.get('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
@@ -364,6 +579,61 @@ app.post('/api/admin/admins', requireAdmin, requireSuperadmin, asyncRoute(async 
     select: { id: true, name: true, email: true, role: true, createdAt: true },
   });
   res.status(201).json({ admin });
+}));
+
+// Signed direct uploads keep Cloudinary secrets on the backend while files upload from the browser.
+app.post('/api/admin/uploads/signature', requireAdmin, asyncRoute(async (_req, res) => {
+  res.json(createUploadSignature());
+}));
+
+app.get('/api/admin/media', requireAdmin, asyncRoute(async (_req, res) => {
+  const assets = await prisma.mediaAsset.findMany({ orderBy: { createdAt: 'desc' }, take: 200 });
+  res.json({ assets });
+}));
+
+app.post('/api/admin/media', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(mediaCreateSchema, req.body);
+  const asset = await prisma.mediaAsset.upsert({
+    where: { publicId: body.publicId },
+    update: {
+      secureUrl: body.secureUrl,
+      format: body.format || null,
+      width: body.width || null,
+      height: body.height || null,
+      bytes: body.bytes ?? null,
+      createdByAdminId: req.admin.id,
+    },
+    create: {
+      publicId: body.publicId,
+      secureUrl: body.secureUrl,
+      format: body.format || null,
+      width: body.width || null,
+      height: body.height || null,
+      bytes: body.bytes ?? null,
+      createdByAdminId: req.admin.id,
+    },
+  });
+  res.status(201).json({ asset });
+}));
+
+app.delete('/api/admin/media/:id', requireAdmin, asyncRoute(async (req, res) => {
+  const asset = await prisma.mediaAsset.findUnique({ where: { id: req.params.id } });
+  if (!asset) throw new AppError(404, 'Media asset not found.');
+  const referenced = await prisma.product.findFirst({
+    where: {
+      OR: [
+        { images: { has: asset.secureUrl } },
+        { variants: { some: { image: asset.secureUrl } } },
+      ],
+    },
+    select: { id: true, name: true },
+  });
+  if (referenced) {
+    throw new AppError(409, `Remove this image from ${referenced.name} before deleting it.`);
+  }
+  await destroyAsset(asset.publicId);
+  await prisma.mediaAsset.delete({ where: { id: asset.id } });
+  res.status(204).send();
 }));
 
 app.get('/api/admin/categories', requireAdmin, asyncRoute(async (_req, res) => {
@@ -527,32 +797,60 @@ app.get('/api/admin/orders/:id', requireAdmin, asyncRoute(async (req, res) => {
 }));
 
 const allowedTransitions = {
-  PENDING: ['PAID', 'CANCELLED'],
-  PAID: ['SHIPPED', 'CANCELLED'],
+  PENDING: ['CANCELLED'],
+  PAID: [],
   SHIPPED: ['DELIVERED'],
   DELIVERED: [],
   CANCELLED: [],
 };
+
+app.patch('/api/admin/orders/:id/shipment', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(shipmentSchema, req.body);
+  const current = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
+  if (!current) throw new AppError(404, 'Order not found.');
+  if (!['PAID', 'SHIPPED'].includes(current.status) || current.paymentStatus !== 'PAID') {
+    throw new AppError(409, 'Only paid orders can be marked as shipped.');
+  }
+
+  const order = await prisma.order.update({
+    where: { id: current.id },
+    data: {
+      status: 'SHIPPED',
+      carrier: body.carrier,
+      trackingNumber: body.trackingNumber,
+      trackingUrl: body.trackingUrl || null,
+      estimatedDelivery: body.estimatedDelivery ? new Date(body.estimatedDelivery) : null,
+      shippedAt: current.shippedAt || new Date(),
+    },
+    include: orderInclude,
+  });
+  await attemptSideEffect(emailEvents.shipped(order));
+  res.json({ order });
+}));
 
 app.patch('/api/admin/orders/:id/status', requireAdmin, asyncRoute(async (req, res) => {
   const { status } = validate(orderStatusSchema, req.body);
   const current = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } });
   if (!current) throw new AppError(404, 'Order not found.');
   if (!allowedTransitions[current.status].includes(status)) {
-    throw new AppError(409, `Order cannot move from ${current.status} to ${status}.`);
+    throw new AppError(409, `Order cannot move from ${current.status} to ${status}. Paid status is controlled by the payment webhook and shipping details are required before SHIPPED.`);
   }
 
   const order = await prisma.$transaction(async (tx) => {
-    if (status === 'CANCELLED') {
-      for (const item of current.items) {
-        await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
-        if (item.variantId) {
-          await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
-        }
-      }
-    }
-    return tx.order.update({ where: { id: current.id }, data: { status }, include: orderInclude });
+    if (status === 'CANCELLED') await restoreOrderInventory(tx, current);
+    return tx.order.update({
+      where: { id: current.id },
+      data: {
+        status,
+        ...(status === 'CANCELLED' && current.paymentStatus !== 'PAID' ? { paymentStatus: 'FAILED' } : {}),
+        ...(status === 'DELIVERED' ? { deliveredAt: new Date() } : {}),
+      },
+      include: orderInclude,
+    });
   });
+
+  if (status === 'CANCELLED') await attemptSideEffect(emailEvents.cancelled(order));
+  if (status === 'DELIVERED') await attemptSideEffect(emailEvents.delivered(order));
   res.json({ order });
 }));
 

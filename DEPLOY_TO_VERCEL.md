@@ -2,131 +2,210 @@
 
 Use one GitHub repository and create three Vercel projects from it.
 
-## 1. Upload the repository
-
-Extract this package, create a GitHub repository, and upload the entire folder. Do not upload only one app folder.
-
-## 2. Create PostgreSQL
-
-In Vercel Marketplace, create a serverless PostgreSQL database using Prisma Postgres, Neon, Supabase, or another compatible provider.
-
-Connect the database to the backend project so Vercel provides `DATABASE_URL`. Use a pooled/serverless connection string.
-
-## 3. Deploy the backend first
-
-Import the GitHub repository as a new Vercel project.
-
-- Project name: `your-store-api`
-- Root Directory: `apps/backend`
-- Framework Preset: Other
-- Install Command: `npm install`
-- Build Command: `npm run vercel-build`
-- Output Directory: leave empty
-
-Set these backend environment variables:
+Current intended domains:
 
 ```text
-DATABASE_URL=<provided by database integration>
-JWT_CUSTOMER_SECRET=<long random secret>
-JWT_ADMIN_SECRET=<different long random secret>
-JWT_CUSTOMER_EXPIRES_IN=7d
-JWT_ADMIN_EXPIRES_IN=8h
-CUSTOMER_ORIGINS=https://your-storefront.vercel.app
-ADMIN_ORIGINS=https://your-admin.vercel.app
-SEED_ADMIN_NAME=Store Super Admin
-SEED_ADMIN_EMAIL=admin@store.com
-SEED_ADMIN_PASSWORD=Admin@12345
+Storefront: https://cosmictech.digital
+Admin:      https://admin.cosmictech.digital
+Backend:    https://ecom-backend-nine-blush.vercel.app
 ```
 
-Generate secure JWT values locally with:
+## 1. Upload/update the GitHub repository
+
+Extract this package and replace the repository contents while preserving the root structure:
+
+```text
+apps/admin
+apps/backend
+apps/storefront
+```
+
+Commit and push to `main`. Do not commit real `.env` files or provider secrets.
+
+## 2. PostgreSQL
+
+Use the existing managed PostgreSQL/Neon database. The backend Vercel project must retain its pooled `DATABASE_URL`.
+
+The updated backend build applies the new launch migration automatically:
+
+```text
+prisma generate
+prisma migrate deploy
+prisma db seed
+```
+
+## 3. Backend Vercel project
+
+Use:
+
+```text
+Project: ecom-backend
+Root Directory: apps/backend
+Framework Preset: Express or Other
+Install Command: npm install
+Build Command: npm run vercel-build
+Output Directory: empty / N/A
+```
+
+### Existing backend variables
+
+```env
+DATABASE_URL=your-existing-pooled-postgresql-url
+JWT_CUSTOMER_SECRET=your-existing-customer-secret
+JWT_ADMIN_SECRET=your-existing-different-admin-secret
+JWT_CUSTOMER_EXPIRES_IN=7d
+JWT_ADMIN_EXPIRES_IN=8h
+CUSTOMER_ORIGINS=https://cosmictech.digital,https://www.cosmictech.digital,https://ecom-storefront-smoky.vercel.app
+ADMIN_ORIGINS=https://admin.cosmictech.digital,https://your-admin-vercel-domain.vercel.app
+SEED_ADMIN_NAME=your-existing-admin-name
+SEED_ADMIN_EMAIL=your-existing-admin-email
+SEED_ADMIN_PASSWORD=your-existing-admin-password
+```
+
+### New commerce variables
+
+```env
+PAYMENT_PROVIDER=safepay
+SAFEPAY_ENVIRONMENT=sandbox
+SAFEPAY_SECRET_KEY=your-safepay-sandbox-secret-key
+SAFEPAY_API_KEY=your-safepay-sandbox-api-key
+SAFEPAY_INTENT=CYBERSOURCE
+SAFEPAY_WEBHOOK_SECRET=your-safepay-endpoint-secret
+SAFEPAY_WEBHOOK_SECRET_PREVIOUS=
+
+STOREFRONT_URL=https://cosmictech.digital
+FREE_SHIPPING_THRESHOLD=2500
+FLAT_SHIPPING_RATE=300
+
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+CLOUDINARY_FOLDER=cosmictech/products
+
+RESEND_API_KEY=re_your_key
+EMAIL_FROM=Cosmic Tech <orders@updates.cosmictech.digital>
+STORE_NAME=Cosmic Tech
+SUPPORT_EMAIL=support@cosmictech.digital
+```
+
+Generate secure JWT values locally, when needed, with:
 
 ```bash
 node scripts/generate-secrets.js
 ```
 
-The build command generates Prisma Client, applies migrations, and runs the idempotent seed.
-
-After deployment, open:
+After deployment, verify:
 
 ```text
-https://your-store-api.vercel.app/health
+https://ecom-backend-nine-blush.vercel.app/health
 ```
 
-A working deployment returns database status `connected`.
+## 4. Safepay webhook
 
-## 4. Deploy the admin application
-
-Import the same GitHub repository again.
-
-- Project name: `your-store-admin`
-- Root Directory: `apps/admin`
-- Framework Preset: Vite
-- Install Command: `npm install`
-- Build Command: `npm run build`
-- Output Directory: `dist`
-
-Environment variables:
+In the matching Safepay sandbox account, create the endpoint:
 
 ```text
-VITE_API_BASE_URL=https://your-store-api.vercel.app
+https://ecom-backend-nine-blush.vercel.app/api/webhooks/safepay
+```
+
+Subscribe to:
+
+```text
+payment.succeeded
+payment.failed
+payment.refunded
+```
+
+Copy the webhook signing/shared secret into `SAFEPAY_WEBHOOK_SECRET`, then redeploy the backend.
+
+## 5. Admin Vercel project
+
+Use:
+
+```text
+Project: ecom-admin
+Root Directory: apps/admin
+Framework Preset: Vite
+Install Command: npm install
+Build Command: npm run build
+Output Directory: dist
+```
+
+Variables:
+
+```env
+VITE_API_BASE_URL=https://ecom-backend-nine-blush.vercel.app
 VITE_CURRENCY=PKR
 ```
 
-Deploy, then log in using the seeded values from `ADMIN_CREDENTIALS.txt`.
-
-## 5. Deploy the storefront
-
-Import the same GitHub repository a third time.
-
-- Project name: `your-storefront`
-- Root Directory: `apps/storefront`
-- Framework Preset: Vite
-- Install Command: `npm install`
-- Build Command: `npm run build`
-- Output Directory: `dist`
-
-Environment variables:
+The custom domain remains:
 
 ```text
-VITE_API_BASE_URL=https://your-store-api.vercel.app
+https://admin.cosmictech.digital
+```
+
+Redeploy this project after the code push to activate image uploads and shipment management.
+
+## 6. Storefront Vercel project
+
+Use:
+
+```text
+Project: ecom-storefront
+Root Directory: apps/storefront
+Framework Preset: Vite
+Install Command: npm install
+Build Command: npm run build
+Output Directory: dist
+```
+
+Variables:
+
+```env
+VITE_API_BASE_URL=https://ecom-backend-nine-blush.vercel.app
 VITE_ENABLE_DEMO_FALLBACK=false
-VITE_STORE_NAME=YOUR BRAND
+VITE_STORE_NAME=Cosmic Tech
 VITE_CURRENCY=PKR
+VITE_FREE_SHIPPING_THRESHOLD=2500
+VITE_FLAT_SHIPPING_RATE=300
 ```
 
-## 6. Final CORS update
-
-Once Vercel gives you the real storefront and admin URLs, update these backend variables with the exact origins:
+The custom domain remains:
 
 ```text
-CUSTOMER_ORIGINS=https://actual-storefront.vercel.app
-ADMIN_ORIGINS=https://actual-admin.vercel.app
+https://cosmictech.digital
 ```
 
-For custom domains, comma-separate all allowed origins:
+## 7. Resend and Hostinger DNS
+
+Add and verify a sending subdomain such as:
 
 ```text
-CUSTOMER_ORIGINS=https://shop.example.com,https://actual-storefront.vercel.app
-ADMIN_ORIGINS=https://admin.example.com,https://actual-admin.vercel.app
+updates.cosmictech.digital
 ```
 
-Redeploy the backend after changing environment variables.
+Copy the exact SPF/DKIM DNS records from Resend into Hostinger. Once verified, ensure `EMAIL_FROM` uses that domain and redeploy the backend.
 
-## 7. Verification
+## 8. Cloudinary
 
-1. Backend `/health` reports a connected database.
+No frontend Cloudinary variables are required. All Cloudinary credentials remain on `ecom-backend`; the authenticated admin receives only a short-lived upload signature plus the public cloud name/API key.
+
+## 9. Verification sequence
+
+1. Backend `/health` reports `database: connected`.
 2. Admin login succeeds.
-3. Seeded products appear in Products.
-4. Storefront loads products from the API.
-5. Create a customer account.
-6. Add a size/color variant to cart and place an order.
-7. The order appears in Admin → Orders.
-8. Move the order through valid statuses.
+3. Upload an image in Admin → Products and save the product.
+4. Confirm the image renders on the storefront.
+5. Create a customer and place a Safepay sandbox order.
+6. Confirm the order starts with `paymentStatus=PROCESSING`.
+7. Confirm a verified `payment.succeeded` webhook changes it to `PAID`.
+8. Enter carrier/tracking details in the admin and mark it shipped.
+9. Confirm customer tracking information and Resend email logs.
+10. Mark the order delivered and confirm the delivery email.
 
-## Important security notes
+## Security notes
 
-- Use different JWT secrets.
-- Replace the default admin password.
-- Do not put database or JWT secrets in variables beginning with `VITE_`; those are exposed to browsers.
-- Only the backend receives `DATABASE_URL` and JWT secrets.
-- Use exact production origins in CORS.
+- Use different customer/admin JWT secrets.
+- Never add backend secrets to a variable beginning with `VITE_`.
+- Do not commit `.env` files.
+- The hardcoded legacy fallback credential issue from audit item 1 remains unresolved in this package because this sprint covered items 2–6 only.

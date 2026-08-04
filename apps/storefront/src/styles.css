@@ -355,3 +355,32 @@ input, select { border-radius: 0; }
   .footer-grid > div:first-child { grid-column: 1/-1; }
   .footer-bottom { padding: 18px 22px; }
 }
+
+/* Launch commerce: verified payments and shipment tracking */
+.payment-provider-card { display:flex; align-items:flex-start; gap:13px; }
+.payment-provider-card > svg { flex:0 0 auto; margin-top:1px; }
+.payment-provider-card > div { min-width:0; }
+.payment-result-page { min-height:calc(100vh - 104px); display:grid; place-items:center; padding:80px 20px; background:var(--soft); }
+.payment-result-card { width:min(620px,100%); padding:64px; text-align:center; background:var(--paper); border:1px solid var(--line); }
+.payment-result-card > svg { margin-bottom:22px; }
+.payment-result-card h1 { margin:8px 0 18px; font-family:'Italiana',Georgia,serif; font-size:clamp(52px,8vw,86px); font-weight:400; }
+.payment-result-card > p:not(.eyebrow) { max-width:500px; margin:0 auto; color:var(--muted); line-height:1.8; }
+.payment-result-card small { display:block; margin-top:20px; color:var(--muted); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+.payment-result-card > div { margin-top:34px; display:flex; align-items:center; justify-content:center; gap:20px; flex-wrap:wrap; }
+.payment-result-card.is-cancelled > svg { opacity:.7; }
+.customer-order-status { display:flex; align-items:center; justify-content:flex-end; gap:7px; flex-wrap:wrap; }
+.payment-state { padding:6px 9px; border:1px solid var(--line); font-size:9px; letter-spacing:.08em; text-transform:uppercase; }
+.payment-state.paid { background:#e9f5ec; border-color:#cfe4d4; }
+.payment-state.processing { background:#fff6df; border-color:#ead9a8; }
+.payment-state.failed, .payment-state.refunded { background:#fbeaea; border-color:#ebc9c9; }
+.customer-tracking { grid-column:1/-1; margin-top:5px; padding:16px; background:var(--soft); display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; }
+.customer-tracking > div { display:flex; flex-direction:column; gap:3px; }
+.customer-tracking strong { font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.customer-tracking span, .customer-tracking small { color:var(--muted); font-size:10px; }
+.customer-tracking a { display:inline-flex; align-items:center; gap:5px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+@media (max-width:720px) {
+  .payment-result-card { padding:48px 22px; }
+  .customer-order-status { justify-content:flex-start; }
+  .customer-tracking { grid-template-columns:auto 1fr; }
+  .customer-tracking a { grid-column:2; }
+}

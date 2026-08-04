@@ -6,12 +6,14 @@ A three-project e-commerce monorepo:
 - `apps/admin` — separate React/Vite admin application and admin auth storage
 - `apps/backend` — Express API deployed as a Vercel Function, PostgreSQL through Prisma
 
+## Identity separation
+
 The customer and admin identity systems are deliberately separate:
 
 - Separate `User` and `Admin` database models
 - Separate login routes
 - Separate JWT signing secrets
-- Token payloads carry a required `kind` (`customer` or `admin`)
+- Token payloads carry a required identity kind (`customer` or `admin`)
 - Customer tokens cannot authenticate admin middleware
 - Admin tokens cannot authenticate customer middleware
 - Storefront and admin use different browser storage keys
@@ -26,8 +28,10 @@ The customer and admin identity systems are deliberately separate:
 - Size/color variant selection
 - Cart drawer and cart page
 - Customer registration and login
-- Checkout with server-side price calculation
-- Customer order history
+- Safepay hosted checkout with server-side price and shipping calculation
+- Verified Safepay webhook payment confirmation
+- Payment success/cancellation states
+- Customer order history with payment polling and shipment tracking
 - Responsive SPA routing for Vercel
 
 ### Admin
@@ -35,10 +39,11 @@ The customer and admin identity systems are deliberately separate:
 - Separate admin login
 - Dashboard metrics
 - Products: create, edit, deactivate
-- Product image URLs
-- Size/color/SKU/price/stock variant matrix
+- Signed Cloudinary image uploads, previews, removal, and gallery ordering
+- Hosted image URL fallback
+- Size/color/SKU/price/stock variant matrix and variant image selection
 - Categories: create and delete
-- Orders: view/filter and valid status transitions
+- Orders: view/filter, payment state, shipment details, tracking, and valid transitions
 - Superadmin account creation
 - Responsive SPA routing for Vercel
 
@@ -49,29 +54,41 @@ The customer and admin identity systems are deliberately separate:
 - bcrypt password hashing
 - zod validation on every write route
 - Helmet, restricted CORS, general and auth rate limits
-- Transactional order price calculation and inventory decrement
+- Transactional server-side price calculation and inventory decrement
+- Safepay checkout initialization and HMAC-verified, idempotent webhooks
+- Cloudinary signed-upload and media-registry endpoints
+- Resend order, payment, shipping, delivery, and cancellation emails
+- Carrier, tracking number/URL, ETA, and fulfilment timestamps
 - Variant-level stock enforcement
-- Stock restoration when a pending/paid order is cancelled
+- Stock restoration when an eligible order is cancelled
 - Soft product deactivation
-- Prisma migration and idempotent seed
+- Prisma migrations and idempotent seed
 - Six sample fashion products and four categories
 
-## Admin login
+## Important unresolved credential risk
 
-Default seed values are documented in `ADMIN_CREDENTIALS.txt`.
+Audit item 1 was deliberately not changed in this sprint. The legacy seed/reset scripts still fall back to:
 
-- Email: `admin@store.com`
-- Password: `Admin@12345`
+```text
+admin@store.com
+Admin@12345
+```
 
-Change these through Vercel environment variables before the first production deployment.
+Those values also remain in legacy documentation files. They are not production-safe. Ensure `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` are configured, rotate the deployed admin password, and schedule the fail-fast credential patch separately.
 
 ## Deployment
 
-Follow `DEPLOY_TO_VERCEL.md`. The same GitHub repository is imported into Vercel three times, each with a different Root Directory.
+Follow:
+
+- `DEPLOY_TO_VERCEL.md` for the three Vercel projects
+- `LAUNCH_SPRINT_SETUP.md` for Cloudinary, Safepay, Resend, shipping, migration, and end-to-end testing
+- `LAUNCH_SPRINT_CHANGELOG.md` for the implementation summary
+
+The same GitHub repository is imported into Vercel three times, each with a different Root Directory.
 
 ## Local setup
 
-1. Install each app:
+Install each app:
 
 ```bash
 npm --prefix apps/backend install
@@ -79,7 +96,7 @@ npm --prefix apps/storefront install
 npm --prefix apps/admin install
 ```
 
-2. Copy environment files:
+Copy environment files:
 
 ```bash
 cp apps/backend/.env.example apps/backend/.env
@@ -87,22 +104,22 @@ cp apps/storefront/.env.example apps/storefront/.env
 cp apps/admin/.env.example apps/admin/.env
 ```
 
-3. Create a PostgreSQL database and place its pooled URL in `apps/backend/.env`.
+Create a PostgreSQL database and put its pooled URL in `apps/backend/.env`.
 
-4. Generate JWT secrets:
+Generate JWT secrets:
 
 ```bash
 npm run generate:secrets
 ```
 
-5. Migrate and seed:
+Migrate and seed:
 
 ```bash
 npm --prefix apps/backend run db:deploy
 npm --prefix apps/backend run db:seed
 ```
 
-6. Start each app in a separate terminal:
+Start each app in a separate terminal:
 
 ```bash
 npm run dev:backend
@@ -116,12 +133,13 @@ Local defaults:
 - Storefront: `http://localhost:5173`
 - Admin: `http://localhost:5174`
 
-Set both frontend `VITE_API_BASE_URL` values to `http://localhost:4000`.
+Set both frontend `VITE_API_BASE_URL` values to `http://localhost:4000` for local development.
 
-## Not yet integrated
+## Still not included
 
-- Live card/payment gateway: checkout creates `PENDING` orders.
-- Direct image uploads: admin currently stores hosted image URLs.
-- Transactional email and courier integrations.
-
-These are isolated extension points and do not block catalog, auth, inventory, checkout, or order management.
+- Returns/refund management and provider refund initiation
+- Coupons and tax rules
+- Multiple shipping services/rates
+- Customer password reset
+- Automatic expiry/release of abandoned payment reservations
+- Reopening an existing pending checkout after the hosted session is cancelled or expires

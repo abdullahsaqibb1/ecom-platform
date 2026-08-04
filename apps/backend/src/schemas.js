@@ -3,6 +3,14 @@ const { z } = require('zod');
 const email = z.string().trim().email().transform((value) => value.toLowerCase());
 const password = z.string().min(8).max(128);
 const uuid = z.string().uuid();
+const httpUrl = z.string().trim().url().refine((value) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, 'URL must use http or https.');
+const httpsUrl = httpUrl.refine((value) => new URL(value).protocol === 'https:', 'URL must use https.');
 
 const customerRegisterSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -31,7 +39,7 @@ const variantSchema = z.object({
   color: z.string().trim().max(60).nullable().optional(),
   price: z.coerce.number().nonnegative().nullable().optional(),
   stock: z.coerce.number().int().nonnegative(),
-  image: z.string().url().nullable().optional(),
+  image: httpUrl.nullable().optional(),
 }).strict();
 
 const productFields = {
@@ -41,7 +49,7 @@ const productFields = {
   price: z.coerce.number().nonnegative(),
   compareAtPrice: z.coerce.number().nonnegative().nullable().optional(),
   stock: z.coerce.number().int().nonnegative(),
-  images: z.array(z.string().url()).max(12).default([]),
+  images: z.array(httpUrl).max(12).default([]),
   isActive: z.boolean().default(true),
   categoryId: uuid.nullable().optional(),
   color: z.string().trim().max(60).nullable().optional(),
@@ -78,6 +86,22 @@ const orderStatusSchema = z.object({
   status: z.enum(['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
 }).strict();
 
+const shipmentSchema = z.object({
+  carrier: z.string().trim().min(2).max(100),
+  trackingNumber: z.string().trim().min(2).max(150),
+  trackingUrl: httpUrl.nullable().optional(),
+  estimatedDelivery: z.string().datetime().nullable().optional(),
+}).strict();
+
+const mediaCreateSchema = z.object({
+  publicId: z.string().trim().min(2).max(500),
+  secureUrl: httpsUrl,
+  format: z.string().trim().max(30).nullable().optional(),
+  width: z.coerce.number().int().positive().nullable().optional(),
+  height: z.coerce.number().int().positive().nullable().optional(),
+  bytes: z.coerce.number().int().nonnegative().nullable().optional(),
+}).strict();
+
 module.exports = {
   customerRegisterSchema,
   loginSchema,
@@ -87,4 +111,6 @@ module.exports = {
   productUpdateSchema,
   orderCreateSchema,
   orderStatusSchema,
+  shipmentSchema,
+  mediaCreateSchema,
 };

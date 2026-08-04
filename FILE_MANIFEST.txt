@@ -2,9 +2,11 @@
 ADMIN_CREDENTIALS.txt
 ARCHITECTURE.md
 DEPLOY_TO_VERCEL.md
-FILE_MANIFEST.txt
+LAUNCH_SPRINT_CHANGELOG.md
+LAUNCH_SPRINT_SETUP.md
 PACKAGE_VALIDATION.txt
 README.md
+STOREFRONT_BLANK_SCREEN_FIX.md
 apps/admin/.env.example
 apps/admin/.gitignore
 apps/admin/README.md
@@ -46,6 +48,7 @@ apps/backend/README.md
 apps/backend/api/index.js
 apps/backend/package.json
 apps/backend/prisma/migrations/202608010001_init/migration.sql
+apps/backend/prisma/migrations/202608040001_launch_commerce/migration.sql
 apps/backend/prisma/migrations/migration_lock.toml
 apps/backend/prisma/reset-admin.js
 apps/backend/prisma/schema.prisma
@@ -53,8 +56,11 @@ apps/backend/prisma/seed.js
 apps/backend/server.js
 apps/backend/src/app.js
 apps/backend/src/auth.js
+apps/backend/src/cloudinary.js
+apps/backend/src/email.js
 apps/backend/src/errors.js
 apps/backend/src/prisma.js
+apps/backend/src/safepay.js
 apps/backend/src/schemas.js
 apps/backend/vercel.json
 apps/storefront/.env.example
@@ -82,6 +88,7 @@ apps/storefront/src/pages/CheckoutPage.tsx
 apps/storefront/src/pages/CollectionPage.tsx
 apps/storefront/src/pages/ContentPage.tsx
 apps/storefront/src/pages/HomePage.tsx
+apps/storefront/src/pages/PaymentResultPages.tsx
 apps/storefront/src/pages/ProductPage.tsx
 apps/storefront/src/styles.css
 apps/storefront/src/types/domain.ts
@@ -94,3 +101,4 @@ apps/storefront/vite.config.ts
 package.json
 scripts/check-package.js
 scripts/generate-secrets.js
+scripts/test-launch-sprint.js
