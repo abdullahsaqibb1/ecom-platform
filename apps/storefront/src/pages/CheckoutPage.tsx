@@ -8,6 +8,8 @@ import { createOrder, getPaymentMethods, validateDiscount } from '../lib/api';
 import { formatMoney } from '../lib/format';
 import type { DiscountPreview } from '../types/domain';
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const FREE_SHIPPING_THRESHOLD = Number(import.meta.env.VITE_FREE_SHIPPING_THRESHOLD ?? 2500);
 const FLAT_SHIPPING_RATE = Number(import.meta.env.VITE_FLAT_SHIPPING_RATE ?? 300);
 
@@ -39,6 +41,7 @@ export function CheckoutPage() {
   const total = Math.max(0, subtotal + shipping - discountTotal);
   const selectedMethod = paymentMethods.find((method) => method.code === paymentMethodCode);
   const orderItems = items.map((item) => ({ productId: item.product.id, variantId: item.variant?.id ?? null, quantity: item.quantity }));
+  const hasPreviewItems = orderItems.some((item) => !UUID_PATTERN.test(item.productId) || (item.variantId != null && !UUID_PATTERN.test(item.variantId)));
 
   async function applyDiscount() {
     if (!discountCode.trim()) return;
@@ -56,7 +59,12 @@ export function CheckoutPage() {
       <p className="eyebrow">Secure checkout</p>
       <h1>Delivery & payment</h1>
       <form onSubmit={async (event) => {
-        event.preventDefault(); setError(''); setSubmitting(true);
+        event.preventDefault(); setError('');
+        if (hasPreviewItems) {
+          setError('Your cart contains old preview products that are not connected to live inventory. Empty the cart and add the products again from the live store.');
+          return;
+        }
+        setSubmitting(true);
         try {
           const result = await createOrder({ items: orderItems, shippingAddress: form, paymentMethodCode, discountCode: discount?.code ?? null, customerNote: customerNote.trim() || null });
           if (result.payment.checkoutUrl) { window.location.assign(result.payment.checkoutUrl); return; }
@@ -71,7 +79,7 @@ export function CheckoutPage() {
 
         <div className="payment-placeholder payment-provider-card"><ShieldCheck size={19} /><div><strong>{selectedMethod?.requiresOnlinePayment ? 'Verified online payment' : 'Server-validated order'}</strong><p>Prices, discounts and inventory are recalculated by our server before your order is accepted.</p></div></div>
         {methodsQuery.error ? <p className="form-error">Unable to load payment methods. Please refresh.</p> : null}
-        {error && <p className="form-error">{error}</p>}
+        {error && <div className="form-error"><p>{error}</p>{hasPreviewItems ? <button type="button" className="text-button" onClick={() => { clearCart(); window.location.assign('/collections/all'); }}>Empty preview cart and browse live products</button> : null}</div>}
         <button className="button dark full" disabled={submitting || !paymentMethodCode}>{submitting ? 'Placing order…' : `${selectedMethod?.requiresOnlinePayment ? 'Continue to secure payment' : 'Place order'} · ${formatMoney(total)}`}</button>
       </form>
     </div>

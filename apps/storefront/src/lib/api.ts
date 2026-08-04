@@ -3,7 +3,7 @@ import type { Category, Collection, ContentPageRecord, Customer, DiscountPreview
 import { customerTokenStorage } from './storage';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
-const DEMO_FALLBACK = (import.meta.env.VITE_ENABLE_DEMO_FALLBACK ?? 'true') === 'true';
+const DEMO_FALLBACK = import.meta.env.VITE_ENABLE_DEMO_FALLBACK === 'true';
 
 export const STORE_API = {
   products: '/api/products',
@@ -62,9 +62,28 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       customerTokenStorage.clear();
       window.dispatchEvent(new Event('customer-session-expired'));
     }
-    const message = payload && typeof payload === 'object' && 'message' in payload
-      ? String((payload as { message: unknown }).message)
+    const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : null;
+    const baseMessage = record && 'message' in record
+      ? String(record.message)
       : `Request failed with status ${response.status}.`;
+    const details = record?.details && typeof record.details === 'object'
+      ? record.details as Record<string, unknown>
+      : null;
+    const fieldErrors = details?.fieldErrors && typeof details.fieldErrors === 'object'
+      ? details.fieldErrors as Record<string, unknown>
+      : null;
+    const formErrors = Array.isArray(details?.formErrors)
+      ? details.formErrors.filter((item): item is string => typeof item === 'string')
+      : [];
+    const detailMessages = [
+      ...formErrors,
+      ...Object.entries(fieldErrors ?? {}).flatMap(([field, value]) =>
+        Array.isArray(value)
+          ? value.filter((item): item is string => typeof item === 'string').map((item) => `${field}: ${item}`)
+          : [],
+      ),
+    ];
+    const message = detailMessages.length ? `${baseMessage} ${detailMessages.join(' ')}` : baseMessage;
     throw new ApiError(message, response.status, payload);
   }
   return payload as T;
