@@ -158,6 +158,7 @@ async function main() {
         specifications: sample.specifications,
         highlights: sample.highlights,
         whatsInBox: sample.whatsInBox,
+        careInstructions: [],
         tags: sample.tags,
         categoryId: categoryMap[sample.category].id,
         variants: { create: sample.variants },
