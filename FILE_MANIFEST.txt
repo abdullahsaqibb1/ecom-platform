@@ -1,104 +1,111 @@
-.gitignore
-ADMIN_CREDENTIALS.txt
-ARCHITECTURE.md
-DEPLOY_TO_VERCEL.md
-LAUNCH_SPRINT_CHANGELOG.md
-LAUNCH_SPRINT_SETUP.md
-PACKAGE_VALIDATION.txt
-README.md
-STOREFRONT_BLANK_SCREEN_FIX.md
-apps/admin/.env.example
-apps/admin/.gitignore
-apps/admin/README.md
-apps/admin/index.html
-apps/admin/package.json
-apps/admin/src/App.tsx
-apps/admin/src/components/Badge.tsx
-apps/admin/src/components/Button.tsx
-apps/admin/src/components/ConfirmDialog.tsx
-apps/admin/src/components/EmptyState.tsx
-apps/admin/src/components/LoadingState.tsx
-apps/admin/src/components/Modal.tsx
-apps/admin/src/components/PageHeader.tsx
-apps/admin/src/components/Pagination.tsx
-apps/admin/src/features/admins/AdminsPage.tsx
-apps/admin/src/features/auth/AuthContext.tsx
-apps/admin/src/features/auth/LoginPage.tsx
-apps/admin/src/features/auth/ProtectedRoute.tsx
-apps/admin/src/features/categories/CategoriesPage.tsx
-apps/admin/src/features/dashboard/DashboardPage.tsx
-apps/admin/src/features/orders/OrdersPage.tsx
-apps/admin/src/features/products/ProductForm.tsx
-apps/admin/src/features/products/ProductsPage.tsx
-apps/admin/src/layouts/AdminLayout.tsx
-apps/admin/src/lib/api.ts
-apps/admin/src/lib/format.ts
-apps/admin/src/lib/storage.ts
-apps/admin/src/main.tsx
-apps/admin/src/styles.css
-apps/admin/src/types/domain.ts
-apps/admin/src/vite-env.d.ts
-apps/admin/tsconfig.app.json
-apps/admin/tsconfig.json
-apps/admin/tsconfig.node.json
-apps/admin/vercel.json
-apps/admin/vite.config.ts
-apps/backend/.env.example
-apps/backend/README.md
-apps/backend/api/index.js
-apps/backend/package.json
-apps/backend/prisma/migrations/202608010001_init/migration.sql
-apps/backend/prisma/migrations/202608040001_launch_commerce/migration.sql
-apps/backend/prisma/migrations/migration_lock.toml
-apps/backend/prisma/reset-admin.js
-apps/backend/prisma/schema.prisma
-apps/backend/prisma/seed.js
-apps/backend/server.js
-apps/backend/src/app.js
-apps/backend/src/auth.js
-apps/backend/src/cloudinary.js
-apps/backend/src/email.js
-apps/backend/src/errors.js
-apps/backend/src/prisma.js
-apps/backend/src/safepay.js
-apps/backend/src/schemas.js
-apps/backend/vercel.json
-apps/storefront/.env.example
-apps/storefront/README.md
-apps/storefront/index.html
-apps/storefront/package.json
-apps/storefront/src/App.tsx
-apps/storefront/src/components/AnnouncementBar.tsx
-apps/storefront/src/components/CartDrawer.tsx
-apps/storefront/src/components/Footer.tsx
-apps/storefront/src/components/Header.tsx
-apps/storefront/src/components/ProductCard.tsx
-apps/storefront/src/components/StoreLayout.tsx
-apps/storefront/src/contexts/AuthContext.tsx
-apps/storefront/src/contexts/CartContext.tsx
-apps/storefront/src/data/mock.ts
-apps/storefront/src/lib/api.ts
-apps/storefront/src/lib/format.ts
-apps/storefront/src/lib/storage.ts
-apps/storefront/src/main.tsx
-apps/storefront/src/pages/AccountPage.tsx
-apps/storefront/src/pages/AuthPages.tsx
-apps/storefront/src/pages/CartPage.tsx
-apps/storefront/src/pages/CheckoutPage.tsx
-apps/storefront/src/pages/CollectionPage.tsx
-apps/storefront/src/pages/ContentPage.tsx
-apps/storefront/src/pages/HomePage.tsx
-apps/storefront/src/pages/PaymentResultPages.tsx
-apps/storefront/src/pages/ProductPage.tsx
-apps/storefront/src/styles.css
-apps/storefront/src/types/domain.ts
-apps/storefront/src/vite-env.d.ts
-apps/storefront/tsconfig.app.json
-apps/storefront/tsconfig.json
-apps/storefront/tsconfig.node.json
-apps/storefront/vercel.json
-apps/storefront/vite.config.ts
-package.json
-scripts/check-package.js
-scripts/generate-secrets.js
-scripts/test-launch-sprint.js
+f7d62997d93b94fc7e5688e4696ef5587c4cfe12fbf983cd52f85119de6d2528  .gitignore
+ba091b391c5f7a922e3499f25335d324e5c0c45220658bc461c5e19eadc43302  ARCHITECTURE.md
+8b3328afac12deb0e5b2f2bfe9f01cebc8d682977fcda9b2bb63489b6ef58ca0  DEPLOY_TO_VERCEL.md
+e81f6442faf9b1b0bf0ab331ce352559085c0d9f8d1b4384031c9568179b34d5  LAUNCH_SPRINT_CHANGELOG.md
+aacd5b98112b0749a481edbfb50c4b06a9c23fad89af25a48c4dc20f2cf38e16  LAUNCH_SPRINT_SETUP.md
+cd4fc4b58b2f227afc1daa4d5f1335f906ccfe2b202b69739bfef34b6962b429  README.md
+88735f9ae19218eb7d0f540c45ba4b4731e783db8f28a50a0c88d74b4c44d754  STOREFRONT_BLANK_SCREEN_FIX.md
+c9d36b428273dec23d218ec8b47e6db3e47940e496798f48dcc3c95973814b71  TECH_COMMERCE_OPERATIONS.md
+13528ae9c751d2031739e4cb6f5ee595abfaafb62c5ba767a86c2b718b4b73ae  UPDATE_EXISTING_DEPLOYMENT.md
+c03169113cb4debd5d2f3a42d1b8c4ac25e6f7ea27ff1300c9ad89f53f24cee5  apps/admin/.env.example
+4f4a7dd382e64dac3d6b67c5b99f27554a33418866a2610614f27ff312f1b4bf  apps/admin/.gitignore
+beb8c544b40cb740583924f5fdd9fbe421897c047c12c9bbb5c19f21640a9715  apps/admin/README.md
+bb30e44ed0d7e18f94299f4de3bdb25111c48f01ca4b21039c50f9c8c6aea0d2  apps/admin/index.html
+7aea2ee16e863755b7907d7f873657e2b198648016cb8310b951f08bde104e66  apps/admin/package.json
+4d97a2073a4f18ae39c470bfa321c60893c93cb59539dfc8e1a493a448f19658  apps/admin/src/App.tsx
+13193cc18e01e9ced54bd597f4a639a17d0d2f7ad0ea4467d20e99d50155f479  apps/admin/src/components/Badge.tsx
+670569b4f5ce20ae95cf61fb71f70283478534cce44ef0ef1c831c68e4915a45  apps/admin/src/components/Button.tsx
+3f1abc5184a03f8786431ae80f46f9098c9244487e7c8ae8b3b9a28ddb47eda3  apps/admin/src/components/ConfirmDialog.tsx
+42302f208f562c1ad3e9d82200eeb121139e8c9e6830e197a12ebd7e7e91522b  apps/admin/src/components/EmptyState.tsx
+fb7f7dd2b381026e2f34693a27424b4fcf9cf851a840b23dd1b1b45fe2143eeb  apps/admin/src/components/LoadingState.tsx
+7667027596e7260ee73d4f7e065041d351007dbce9c4e41b1fe1781bd2be005b  apps/admin/src/components/Modal.tsx
+fc4531163f1c1f5a78039095cfa90c8003931182c5e1f0723ffca42a823878ce  apps/admin/src/components/PageHeader.tsx
+a19d4546a6fe9b6421092ae8d1d02c4b538ffd81b091c503370d6442bf7ec935  apps/admin/src/components/Pagination.tsx
+ebdf943108017972d34efe7279dc10c645ba5a693b6519f0de94f2a1025e7ab3  apps/admin/src/features/admins/AdminsPage.tsx
+6f01cca0e3547af8bbb44ee74d57cc38994869054483fb0cf8410d7887f4d86e  apps/admin/src/features/auth/AuthContext.tsx
+850c1edc346023bb9f0273a547e37cd97f6c3b69f3d58a1a82743defda468827  apps/admin/src/features/auth/LoginPage.tsx
+c385464241b6c4f0df7185f8cc13f83d9296b0417144f26826fc8cdf1f5b9834  apps/admin/src/features/auth/ProtectedRoute.tsx
+fa9979b765817e5a76558767085921fd4d800c9ad5e1cc737376fd583d82c3a8  apps/admin/src/features/categories/CategoriesPage.tsx
+b70453c88fbcd4b477e0864b2188bead2f820c330f14ac3a2300711f3c35a427  apps/admin/src/features/collections/CollectionsPage.tsx
+3951f71bc611b08caefb07a45f2c9c4b1ad3c2850c2ce64d92d98f84583f353c  apps/admin/src/features/dashboard/DashboardPage.tsx
+2a599578b91c53b8689f734f999f58c9101e533cd4c303a73c3abb987eb4847a  apps/admin/src/features/discounts/DiscountsPage.tsx
+f803a005658a2e9ee07de2dee599d1a0d58c21a2b6f3eaedbcea6519595922f6  apps/admin/src/features/inventory/InventoryPage.tsx
+5ed252d59a4f24758a07f98f734e09f1f373744bcb9370204fe958d6ca0ecce5  apps/admin/src/features/orders/OrdersPage.tsx
+f4c7e9207a78efd740b44194989296476749c3f42dc6ec9ef29fbc903735b102  apps/admin/src/features/payments/PaymentMethodsPage.tsx
+4dd140c5f5e8640775e092ff5ae3d5e2e7a743201941cf49a2db870e730dc25f  apps/admin/src/features/products/ProductForm.tsx
+03d5583b794b3bf62fd681d9cda68e590c3d71395ce621b3a80719a18b247d47  apps/admin/src/features/products/ProductsPage.tsx
+e61cfc815f1c048caa39dca6d6fa11bcb0353f7c69b4fb51e75c0178113c0750  apps/admin/src/layouts/AdminLayout.tsx
+3ae68397855ee3b62cdb8c910974301fb09b050eb67b2c7e6947c1c652db29f1  apps/admin/src/lib/api.ts
+62094477283ca462c105f081cb9bb542ab131f0247e307f849d6279aa3ec9102  apps/admin/src/lib/format.ts
+3809306d6a825c0014d3387f89c30d28179d1a762dc43c20769f9797ff53fee6  apps/admin/src/lib/storage.ts
+1c136431972bd21abda956e3e0f265faa7c260fe92ce5b6a520c12690cb9acdc  apps/admin/src/main.tsx
+d5b22ee32657677063494f67936905553c3c64fc9d88110eedee3921a6413477  apps/admin/src/styles.css
+16c4c4f7f5bdb90ffb3fe2d317d2e4eef28878c15aa8cd2d0b69b52cd6d1bdda  apps/admin/src/types/domain.ts
+e034da628258cab629e044486eb67dc72782c0438f21830bd4a356a3ab11ed53  apps/admin/src/vite-env.d.ts
+18c9b28224c242bf0338e7a17ec4f3cba0c5264d09e0484d0c826915052ddafb  apps/admin/tsconfig.app.json
+770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808  apps/admin/tsconfig.json
+2fba2f25e1859f193b54edef5d2d2cd08cae2a37fab64c08699f6f8672bea2cc  apps/admin/tsconfig.node.json
+c85f30a05020d207d1d632151b1958bc59a5c3b0aebceaa8bcd6ea316b435b6d  apps/admin/vercel.json
+67c270fa663d5ef9808c64cafaa57843f162a523e49e14a86863da2556396fa3  apps/admin/vite.config.ts
+ea5e9b9add0f79036df294a692448179239dc7e3fd4277507d5ba21fda2e88ea  apps/backend/.env.example
+dca1fdadbc78501b7fdada90ae85b42a78fd159c1eeea328bea4248f9c70c1ef  apps/backend/README.md
+2810856879db308f0f86b9e49f5aab822315ec5a84866ac216135900fa8f64f9  apps/backend/api/index.js
+30ea022b84d2c297100d1b58c0c2ffd524986f7894422c36f0d368fdcd245d19  apps/backend/package.json
+666e1825091c6808837afa8227deee29a75b150e0f7f3321bf6eb6101523978d  apps/backend/prisma/migrations/202608010001_init/migration.sql
+2779308cd38190a95d139de9523283d262e8f38dfb7d795e53d9b082bfcc516c  apps/backend/prisma/migrations/202608040001_launch_commerce/migration.sql
+5178e5680686053ea4fa34ad25a68e729f0f39b65c5e41eef3f0b696c3472002  apps/backend/prisma/migrations/202608040002_tech_commerce_operations/migration.sql
+1db17a8d051aa136110736752c5e1f8b7ed92b6ea8e803112fbbe2497047c210  apps/backend/prisma/migrations/migration_lock.toml
+e1453905e8051754431935e922d6571be67f7e1b8ba7653d2ec7171a10672252  apps/backend/prisma/reset-admin.js
+c461df67587bfe050733af41e1d01bbd53739a6512f0007ab741cf579b450362  apps/backend/prisma/schema.prisma
+41f79efbc3304ba5a5e9f1b8f065a865adb419ee7d9c09bf07b336bda31c9aaa  apps/backend/prisma/seed.js
+23e6007849c7bcb637e9eedbf79b68861ac258d372bb7ab588204a7e4db108a0  apps/backend/server.js
+b6aff2876f1a9651ce6a6016020cfb00c5ddc87573e13d107906db2c9ecf6f7a  apps/backend/src/app.js
+b0c6774b91c72c7de3e0f6a43f2a7e1a3c8a9a1e1e7c576a5b7b421c6aebe11f  apps/backend/src/auth.js
+46bfa0e9ced5d54b1035b63fd57acaf90f3c1608019388cb0f5fde2ec5a24fac  apps/backend/src/cloudinary.js
+5a0d3254c201226e78410cab0d7cc54f67fefd02c2c811b76653845e3b0e7b86  apps/backend/src/commerce.js
+c3026a124088568dc74870dc3f272cd6a06dfe8474f31b343efb96f962b07d26  apps/backend/src/email.js
+0f107e9a27e9755fab1ad588da6bd25254f6179b79b3eada701b025116a7c451  apps/backend/src/errors.js
+1970c3861379adfd44436935510ca1102694cebd7f341ca2698b4e72794f9dd9  apps/backend/src/prisma.js
+4c0ddee0032c010eeccd3a314314995b4c10dcbb3aeda760c3f8c87881aaf9db  apps/backend/src/safepay.js
+912a33ad5697cce57ad74b1da717bdabdaf83b472935d635228868fe624c0c1a  apps/backend/src/schemas.js
+b6cec0ee5154d19f80e15c6145b9384ade5f0c06df0008a414e664fe3fe4fa21  apps/backend/vercel.json
+d3c7780b453bbed0d31eb1d4a8be08657daf3c7990230d3d2ce319e84ee6cbb4  apps/storefront/.env.example
+6692ffb3b13fb429a61668bae7dc77a29ed5405ced7d70d695fdfbe391d21182  apps/storefront/README.md
+7cfb13eb04f87c950c767e889275b90d1ed213f56e3c60d41f85fd3065b7ed59  apps/storefront/index.html
+153053b81d2f5fe93517f11d1e6aee1509719c684f28698f6a5950c04453d107  apps/storefront/package.json
+c98131709f9237bef32dd19807dfbbba5e03fa4675abde8a98c1a195bd582d61  apps/storefront/src/App.tsx
+185a7fbdd49bb1fd1b1b13888d32540c6d0a8d3de237e2a28eca445a3e5a7913  apps/storefront/src/components/AnnouncementBar.tsx
+b37da932687b884e2cd6b5db9822fd80cdd2a3d8ca724688d786050a36507be4  apps/storefront/src/components/CartDrawer.tsx
+a087ce99f49456315590062e09a5dd340048a5320b1083bbf9095be8acf96b64  apps/storefront/src/components/EarbudsHeroVisual.tsx
+3a94f962626f9b4f6700482b18979b6712917658037399ba29978d36ede5cdb1  apps/storefront/src/components/Footer.tsx
+64ea490883d5e3399106c1663a4451ef5ad84ee2402ad1fa3e60b1bf1ba4db51  apps/storefront/src/components/Header.tsx
+8be1a65f4f1f27378fce7a17a6e24f212504d0dcdad8fc4909e17e0d6c227665  apps/storefront/src/components/ProductCard.tsx
+16146bacd01af3bec2ebf0cf68c490fc6a7fa910480191acd7782a1528bbd1e6  apps/storefront/src/components/StoreLayout.tsx
+0f08deffab547c2b691916f323326059d3e88f0ef0db362f0c9837b901ba05a4  apps/storefront/src/contexts/AuthContext.tsx
+34170c9f1583f551051a21d8947425f7c23cc12e1df6ca07b9169769410c755d  apps/storefront/src/contexts/CartContext.tsx
+2c150299714152305b6c12ca56424dbbb05fa0a6f0971cecdb0d9c948ab9d236  apps/storefront/src/data/mock.ts
+4426f8bbc16ef5a3cb9f49793566a1fcf35b96273964190ec132b31a97f56360  apps/storefront/src/lib/api.ts
+071c2eaa8aa22606ecf3b833c75f31268aefa92b3ef2fbc4aaedddec997399e6  apps/storefront/src/lib/format.ts
+fd409284425f926bdd00654ece5dd64d93fad998fb2ceffb6355c1bb512df740  apps/storefront/src/lib/storage.ts
+c5850b009003a31e4100acfa926d39ffaf26cccd2675be946ba5bd4ba24ddf44  apps/storefront/src/main.tsx
+db2ff3a93b1dba9aa7fa4c9a750a35a87fecfa29a1ba5ccb1bf7c50c93d3d493  apps/storefront/src/pages/AccountPage.tsx
+2e252ae41cffc5dc1c5be257fa164285717d98dfe78f8c288a2acbc4d1e43efd  apps/storefront/src/pages/AuthPages.tsx
+4ce4982c67e8a5696b3422e41938d472651f8ff9874685b58021ab39d397d5fc  apps/storefront/src/pages/CartPage.tsx
+e9d35a856a507d9110b677ffc90789f66ec2540e1b4a8fd4eb17cf5084c56835  apps/storefront/src/pages/CheckoutPage.tsx
+bc668e88cfafcb8f8d9fd56635c03b47252a84d1f8fd4571a9b1dd02aff5c68e  apps/storefront/src/pages/CollectionPage.tsx
+0c3b88286eb83a369c5065504817365427c597555d4aa885be86f5faeef80f93  apps/storefront/src/pages/ContentPage.tsx
+379a53ff7d855f9c61683ac56707ed1309773ad247886cbe563a6ff412eadc22  apps/storefront/src/pages/HomePage.tsx
+ccb85d5f6c76c0790b8aa8d16bea8dc607414ea3554da6f93a8203360da586d3  apps/storefront/src/pages/PaymentResultPages.tsx
+605cd5c96a64a4cb5c558839ef8bb996489b23de9fc9227d7a1a0b5df419ad3f  apps/storefront/src/pages/ProductPage.tsx
+429786dd361924cd282cb399cb6be9ca612b9868873d179a51d0256dd2ec4841  apps/storefront/src/styles.css
+e8bddc4e1a0676a9cf7190d2cf3f0b630974621ccabca77ec48e26c5e44ef2d0  apps/storefront/src/types/domain.ts
+e356ea078d1eaaa164da2b241985387cc6e688e788b7cd6d6d33109b5bbf49ef  apps/storefront/src/vite-env.d.ts
+18eef6f87ef638fb29585831d4c1898a1d06b725164f01d36be48120f6afa6d7  apps/storefront/tsconfig.app.json
+770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808  apps/storefront/tsconfig.json
+62e382d75e04b4191764975b88168fe23c3837fda41c5088e8fbb53337469544  apps/storefront/tsconfig.node.json
+c85f30a05020d207d1d632151b1958bc59a5c3b0aebceaa8bcd6ea316b435b6d  apps/storefront/vercel.json
+0709465427668ae85ef999f63762d7a06fd92962363fe8cc142ad656d3548115  apps/storefront/vite.config.ts
+523ba3f69c2e9e1ab1f1d94930ca7ca6f8ff93accfb8f40d290198a6e84c470b  package.json
+8c163fc821ccd079529b3cd7b6f496b29f84f728450a002e756aeb2042caa185  scripts/check-package.js
+ab05a4a5efb44b877d2faed07dcf1ef299b8a59228d3a771cf0d45dc9fbebd0d  scripts/generate-secrets.js
+42bb4c950c1a0976c0625eb7a6cbb7f370cae9601afbf83b15b0ec8293b296ce  scripts/test-launch-sprint.js

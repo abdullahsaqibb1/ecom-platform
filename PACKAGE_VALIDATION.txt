@@ -1,30 +1,21 @@
-PACKAGE VALIDATION — LAUNCH COMMERCE SPRINT
+COSMIC TECH COMMERCE OPERATIONS — VALIDATION REPORT
+Generated: 2026-08-04
 
-Completed checks:
-- Required storefront, admin, backend, migration, documentation, and Vercel files are present.
-- Launch implementation markers were verified for Cloudinary uploads, Safepay checkout/webhooks, shipment tracking, and Resend email.
-- All 48 frontend TypeScript/TSX source files parsed successfully for syntax using TypeScript 5.8.3.
-- All backend, Prisma script, and package JavaScript files passed `node --check`.
-- Safepay HMAC-SHA512 signature validation passed for current and previous webhook secrets.
-- Safepay prefixed signature handling, bad-signature rejection, webhook payload parsing, and PKR minor-unit conversion tests passed.
-- Webhook event persistence and notification/media Prisma models are included in an additive production migration.
-- Storefront and admin route/API markers match implemented backend paths.
-- Vercel SPA rewrites remain included for both Vite frontends.
-- Express-to-Vercel routing remains included for the backend.
-- No provider credentials, database connection strings, or live API keys were added to the package.
+PASSED
+- Backend JavaScript syntax: 13 files checked with node --check.
+- Frontend TypeScript/TSX syntax: 53 files transpile-parsed with TypeScript.
+- Relative TypeScript import paths: resolved in the final source tree.
+- JSON parsing: package and configuration JSON files parse successfully.
+- CSS delimiter checks: admin and storefront stylesheets have balanced braces.
+- Existing launch-sprint Safepay signature, rotation, payload, and amount tests passed.
+- Static package markers confirmed for inventory, collections, discounts, bulk product actions, payment methods, rich product publishing, checkout discounts, and storefront specifications.
+- Credential literal scan: legacy admin@store.com / Admin@12345 values are absent from this package.
+- Additive migration present: 202608040002_tech_commerce_operations.
+- Total package files at validation time: 112.
 
-Archive checks performed after packaging:
-- ZIP integrity test.
-- SHA-256 checksum generation.
+NOT EXECUTED IN THIS WORKSPACE
+- Full npm dependency installation and Vite production builds.
+- prisma validate / migration execution against the user's live Neon database.
+- Live API calls to Vercel, Neon, Cloudinary, Safepay, or Resend.
 
-Not executed in this workspace:
-- Full npm dependency installation and production builds. The workspace package registry did not contain all public dependencies, and direct public-registry installation timed out.
-- A live Cloudinary upload, Safepay sandbox transaction/webhook, or Resend delivery. Those require the user's provider accounts and credentials.
-
-Known security issue intentionally left unchanged because this sprint started at audit items 2–6:
-- The legacy seed/reset scripts and documentation still contain the fallback admin credentials `admin@store.com` / `Admin@12345` when seed environment variables are missing. Rotate the existing admin password and complete audit item 1 before public launch.
-
-Known operational limitations outside this sprint:
-- Abandoned Safepay checkouts can keep inventory reserved until an operator cancels the pending order; automatic expiry/release is not implemented.
-- Returns, refund initiation, partial refund handling, and customer self-service cancellation are not implemented.
-- No live payment can be accepted until Safepay production approval and production keys are configured.
+Reason: the workspace package registry does not provide every public dependency required by the React applications. Vercel should perform the real install/build after the GitHub commit. Review the backend build log for prisma migrate deploy before testing the admin UI.

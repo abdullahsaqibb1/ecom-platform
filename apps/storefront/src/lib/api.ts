@@ -1,5 +1,5 @@
 import { mockCategories, mockProducts } from '../data/mock';
-import type { Category, Customer, Order, OrderCreationResult, Paginated, Product } from '../types/domain';
+import type { Category, Collection, Customer, DiscountPreview, Order, OrderCreationResult, Paginated, PaymentMethod, Product } from '../types/domain';
 import { customerTokenStorage } from './storage';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -9,6 +9,10 @@ export const STORE_API = {
   products: '/api/products',
   product: (idOrSlug: string) => `/api/products/${idOrSlug}`,
   categories: '/api/categories',
+  collections: '/api/collections',
+  collection: (slug: string) => `/api/collections/${slug}`,
+  paymentMethods: '/api/payment-methods',
+  validateDiscount: '/api/discounts/validate',
   login: '/api/auth/login',
   register: '/api/auth/register',
   me: '/api/me',
@@ -68,7 +72,7 @@ function unwrapList<T>(payload: unknown, keys: string[] = []): T[] {
   if (Array.isArray(payload)) return payload as T[];
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
-    for (const key of [...keys, 'items', 'data', 'results', 'products', 'categories', 'orders']) {
+    for (const key of [...keys, 'items', 'data', 'results', 'products', 'categories', 'collections', 'paymentMethods', 'orders']) {
       if (Array.isArray(record[key])) return record[key] as T[];
     }
   }
@@ -125,6 +129,42 @@ export async function getCategories(): Promise<Category[]> {
   }
 }
 
+
+export async function getCollections(): Promise<Collection[]> {
+  try {
+    return unwrapList<Collection>(await request<unknown>(STORE_API.collections), ['collections']);
+  } catch (error) {
+    if (!DEMO_FALLBACK) throw error;
+    return [];
+  }
+}
+
+export async function getCollection(slug: string): Promise<{ collection: Collection; products: Paginated<Product> }> {
+  const payload = await request<unknown>(STORE_API.collection(slug));
+  if (!payload || typeof payload !== 'object') throw new ApiError('The collection API returned an invalid response.', 502);
+  const record = payload as Record<string, unknown>;
+  const items = unwrapList<Product>(payload, ['products']);
+  const pagination = record.pagination && typeof record.pagination === 'object' ? record.pagination as Record<string, unknown> : {};
+  return {
+    collection: unwrapEntity<Collection>(payload, ['collection']),
+    products: {
+      items,
+      page: Number(pagination.page ?? 1),
+      limit: Number(pagination.limit ?? 24),
+      total: Number(pagination.total ?? items.length),
+      totalPages: Number(pagination.totalPages ?? 1),
+    },
+  };
+}
+
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  return unwrapList<PaymentMethod>(await request<unknown>(STORE_API.paymentMethods), ['paymentMethods']);
+}
+
+export async function validateDiscount(body: { code: string; items: Array<{ productId: string; variantId?: string | null; quantity: number }> }): Promise<DiscountPreview> {
+  return unwrapEntity<DiscountPreview>(await request<unknown>(STORE_API.validateDiscount, { method: 'POST', body, auth: true }), ['discount']);
+}
+
 export async function loginCustomer(body: { email: string; password: string }): Promise<{ token: string; user?: Customer }> {
   return request(STORE_API.login, { method: 'POST', body });
 }
@@ -149,6 +189,6 @@ export async function createOrder(body: unknown): Promise<OrderCreationResult> {
   const record = payload as Record<string, unknown>;
   return {
     order: unwrapEntity<Order>(payload, ['order']),
-    payment: (record.payment ?? { provider: 'manual', checkoutUrl: null }) as OrderCreationResult['payment'],
+    payment: (record.payment ?? { method: { id: 'manual', code: 'cod', provider: 'manual', displayName: 'Cash on delivery', requiresOnlinePayment: false, sortOrder: 0 }, checkoutUrl: null }) as OrderCreationResult['payment'],
   };
 }

@@ -2,6 +2,24 @@ export interface Category {
   id: string;
   name: string;
   slug?: string;
+  description?: string | null;
+  image?: string | null;
+}
+
+export interface Collection {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  image?: string | null;
+  isFeatured?: boolean;
+  productCount?: number;
+}
+
+export interface CollectionMembership {
+  collectionId: string;
+  position?: number;
+  collection: Collection;
 }
 
 export interface ProductVariant {
@@ -10,7 +28,12 @@ export interface ProductVariant {
   size?: string;
   color?: string;
   price?: number | string;
+  costPrice?: number | string | null;
   stock: number;
+  lowStockThreshold?: number;
+  barcode?: string | null;
+  compatibility?: string[];
+  specifications?: Record<string, string> | null;
   image?: string;
 }
 
@@ -24,14 +47,47 @@ export interface Product {
   stock: number;
   images: string[];
   isActive: boolean;
+  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  isFeatured?: boolean;
+  brand?: string | null;
+  model?: string | null;
+  barcode?: string | null;
+  condition?: string | null;
+  warrantyMonths?: number | null;
+  compatibility?: string[];
+  specifications?: Record<string, string> | null;
+  highlights?: string[];
+  whatsInBox?: string[];
   categoryId?: string | null;
   category?: Category | null;
+  collections?: CollectionMembership[];
   color?: string;
   material?: string;
   careInstructions?: string[];
   variants?: ProductVariant[];
   tags?: string[];
   createdAt?: string;
+}
+
+export interface PaymentMethod {
+  id: string;
+  code: string;
+  provider: string;
+  displayName: string;
+  description?: string | null;
+  instructions?: string | null;
+  requiresOnlinePayment: boolean;
+  sortOrder: number;
+}
+
+export interface DiscountPreview {
+  code: string;
+  name: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING';
+  discountTotal: number | string;
+  subtotal: number | string;
+  shippingTotal: number | string;
+  total: number | string;
 }
 
 export interface CartItem {
@@ -65,10 +121,15 @@ export interface Order {
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
   paymentProvider?: string | null;
+  paymentMethodCode?: string | null;
+  discountCode?: string | null;
+  discountTotal?: number | string;
+  taxTotal?: number | string;
   subtotal?: number | string;
   shippingTotal?: number | string;
   total?: number | string;
   totalAmount?: number | string;
+  customerNote?: string | null;
   items: OrderItem[];
   createdAt: string;
   shippingAddress?: Record<string, unknown> | string | null;
@@ -84,7 +145,7 @@ export interface Order {
 export interface OrderCreationResult {
   order: Order;
   payment: {
-    provider: string;
+    method: PaymentMethod;
     checkoutUrl: string | null;
   };
 }

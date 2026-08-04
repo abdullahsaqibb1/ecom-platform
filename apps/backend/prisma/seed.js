@@ -5,60 +5,96 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const categories = [
-  { name: 'Women', slug: 'women' },
-  { name: 'Men', slug: 'men' },
-  { name: 'Footwear', slug: 'footwear' },
-  { name: 'Accessories', slug: 'accessories' },
+  { name: 'AirPods & Earbuds', slug: 'earbuds', sortOrder: 10 },
+  { name: 'Headphones', slug: 'headphones', sortOrder: 20 },
+  { name: 'Chargers', slug: 'chargers', sortOrder: 30 },
+  { name: 'Cables', slug: 'cables', sortOrder: 40 },
+  { name: 'Power Banks', slug: 'power-banks', sortOrder: 50 },
+  { name: 'Accessories', slug: 'accessories', sortOrder: 60 },
+];
+
+const collections = [
+  { name: 'New Arrivals', slug: 'new-arrivals', isFeatured: true, sortOrder: 10 },
+  { name: 'Fast Charging', slug: 'fast-charging', isFeatured: true, sortOrder: 20 },
+  { name: 'iPhone Essentials', slug: 'iphone-essentials', isFeatured: true, sortOrder: 30 },
+  { name: 'Best Sellers', slug: 'best-sellers', isFeatured: true, sortOrder: 40 },
+];
+
+const paymentMethods = [
+  {
+    code: 'cod', provider: 'manual', displayName: 'Cash on delivery',
+    description: 'Pay in cash when the order arrives.', isEnabled: true,
+    requiresOnlinePayment: false, sortOrder: 10,
+  },
+  {
+    code: 'bank-transfer', provider: 'bank_transfer', displayName: 'Bank transfer',
+    description: 'Place the order and follow the bank-transfer instructions.', isEnabled: false,
+    requiresOnlinePayment: false, sortOrder: 20,
+  },
+  {
+    code: 'safepay', provider: 'safepay', displayName: 'Card / online payment',
+    description: 'Pay securely through Safepay.', isEnabled: Boolean(process.env.SAFEPAY_API_KEY && process.env.SAFEPAY_SECRET_KEY),
+    requiresOnlinePayment: true, sortOrder: 30,
+  },
 ];
 
 const samples = [
   {
-    name: 'Soft Slub Blouse', slug: 'soft-slub-blouse', category: 'women', price: 7490,
-    description: 'A relaxed blouse cut from soft slub fabric with an easy drape and understated finish.',
-    material: 'Soft slub woven fabric', color: 'Brown', tags: ['women', 'new-arrival'],
-    images: ['https://placehold.co/900x1200/E9E2D8/161616?text=Soft+Slub+Blouse', 'https://placehold.co/900x1200/D8CEC1/161616?text=Blouse+Detail'],
-    variants: [['SSB-BRN-S', 'S', 'Brown', 5], ['SSB-BRN-M', 'M', 'Brown', 8], ['SSB-BRN-L', 'L', 'Brown', 4]],
+    name: 'Orbit Pro Wireless Earbuds', slug: 'orbit-pro-wireless-earbuds', category: 'earbuds', price: 8990,
+    brand: 'Cosmic Tech', model: 'Orbit Pro', warrantyMonths: 12,
+    description: 'Compact wireless earbuds with active noise cancellation, clear calls, USB-C charging and a pocket-sized case.',
+    tags: ['earbuds', 'bluetooth', 'usb-c'], compatibility: ['Bluetooth', 'iPhone', 'Android', 'USB-C'],
+    specifications: { 'Bluetooth version': '5.3', 'Battery life': 'Up to 30 hours', Charging: 'USB-C', 'Noise control': 'Active noise cancellation' },
+    highlights: ['Active noise cancellation', 'Low-latency mode', 'Clear dual-mic calls'],
+    whatsInBox: ['Earbuds', 'Charging case', 'USB-C cable', 'Ear tips'],
+    images: ['https://placehold.co/1200x1200/E7E4DE/171717?text=Orbit+Pro+Earbuds'],
+    variants: [
+      { sku: 'ORB-PRO-WHT', size: 'USB-C case', color: 'White', stock: 18 },
+      { sku: 'ORB-PRO-BLK', size: 'USB-C case', color: 'Black', stock: 14 },
+    ],
+    collections: ['new-arrivals', 'best-sellers'],
   },
   {
-    name: 'Fluid Tailored Shirt', slug: 'fluid-tailored-shirt', category: 'women', price: 8490,
-    description: 'A fluid long-line shirt with a clean collar, dropped shoulders and a refined everyday silhouette.',
-    material: 'Viscose blend', color: 'Ivory', tags: ['women', 'editorial'],
-    images: ['https://placehold.co/900x1200/F2EFE9/161616?text=Fluid+Tailored+Shirt', 'https://placehold.co/900x1200/E5E0D8/161616?text=Shirt+Back'],
-    variants: [['FTS-IVR-S', 'S', 'Ivory', 6], ['FTS-IVR-M', 'M', 'Ivory', 7], ['FTS-IVR-L', 'L', 'Ivory', 6]],
+    name: 'Flux GaN Charger 65W', slug: 'flux-gan-charger-65w', category: 'chargers', price: 6490,
+    brand: 'Cosmic Tech', model: 'Flux 65', warrantyMonths: 12,
+    description: 'A compact 65W GaN wall charger with USB-C Power Delivery for phones, tablets and compatible laptops.',
+    tags: ['charger', 'gan', 'usb-c-pd'], compatibility: ['USB-C PD', 'iPhone', 'Android', 'MacBook', 'Laptop'],
+    specifications: { Output: '65W maximum', Ports: '2 × USB-C, 1 × USB-A', Technology: 'GaN', Input: '100–240V' },
+    highlights: ['Compact GaN design', 'Three-device charging', 'Power Delivery support'],
+    whatsInBox: ['65W GaN charger', 'User guide'],
+    images: ['https://placehold.co/1200x1200/DDDAD4/171717?text=Flux+65W+GaN'],
+    variants: [
+      { sku: 'FLX65-UK-GPH', size: '65W · UK plug', color: 'Graphite', stock: 20 },
+      { sku: 'FLX65-EU-GPH', size: '65W · EU plug', color: 'Graphite', stock: 10 },
+    ],
+    collections: ['fast-charging', 'best-sellers'],
   },
   {
-    name: 'Structured Overshirt', slug: 'structured-overshirt', category: 'men', price: 10990,
-    description: 'A clean structured overshirt designed for lightweight layering across seasons.',
-    material: 'Cotton twill', color: 'Charcoal', tags: ['men', 'outerwear'],
-    images: ['https://placehold.co/900x1200/BBBBB7/161616?text=Structured+Overshirt', 'https://placehold.co/900x1200/A4A49F/161616?text=Overshirt+Detail'],
-    variants: [['SOS-CHR-M', 'M', 'Charcoal', 4], ['SOS-CHR-L', 'L', 'Charcoal', 7], ['SOS-CHR-XL', 'XL', 'Charcoal', 3]],
-  },
-  {
-    name: 'Relaxed Pleat Trouser', slug: 'relaxed-pleat-trouser', category: 'men', price: 8990,
-    description: 'Relaxed trousers with a considered front pleat, straight leg and clean waistband.',
-    material: 'Textured suiting blend', color: 'Stone', tags: ['men', 'trousers'],
-    images: ['https://placehold.co/900x1200/D8D2C8/161616?text=Relaxed+Pleat+Trouser', 'https://placehold.co/900x1200/C7C0B6/161616?text=Trouser+Detail'],
-    variants: [['RPT-STN-30', '30', 'Stone', 5], ['RPT-STN-32', '32', 'Stone', 8], ['RPT-STN-34', '34', 'Stone', 5]],
-  },
-  {
-    name: 'Minimal Leather Slide', slug: 'minimal-leather-slide', category: 'footwear', price: 11990,
-    description: 'A minimal leather slide with a shaped footbed and wide upper for everyday wear.',
-    material: 'Leather upper and lining', color: 'Black', tags: ['footwear', 'unisex'],
-    images: ['https://placehold.co/900x1200/D7D7D4/161616?text=Minimal+Leather+Slide', 'https://placehold.co/900x1200/C4C4C0/161616?text=Slide+Profile'],
-    variants: [['MLS-BLK-40', '40', 'Black', 3], ['MLS-BLK-41', '41', 'Black', 5], ['MLS-BLK-42', '42', 'Black', 6], ['MLS-BLK-43', '43', 'Black', 4]],
-  },
-  {
-    name: 'Everyday Carry Tote', slug: 'everyday-carry-tote', category: 'accessories', price: 6490,
-    description: 'A spacious everyday tote with a structured base, interior pocket and restrained detailing.',
-    material: 'Heavy cotton canvas', color: 'Natural', tags: ['accessories', 'bag'],
-    images: ['https://placehold.co/900x1200/E8E0D1/161616?text=Everyday+Carry+Tote', 'https://placehold.co/900x1200/D6CBB9/161616?text=Tote+Interior'],
-    variants: [], stock: 18,
+    name: 'Link Braided USB-C Cable', slug: 'link-braided-usb-c-cable', category: 'cables', price: 2190,
+    brand: 'Cosmic Tech', model: 'Link 100W', warrantyMonths: 6,
+    description: 'A durable braided USB-C to USB-C cable supporting up to 100W charging and fast data transfer.',
+    tags: ['cable', 'usb-c', '100w'], compatibility: ['USB-C', 'Power Delivery', 'Android', 'MacBook', 'Laptop'],
+    specifications: { Connector: 'USB-C to USB-C', Power: 'Up to 100W', Material: 'Braided nylon', Data: 'USB 2.0' },
+    highlights: ['100W charging', 'Reinforced connectors', 'Braided exterior'],
+    whatsInBox: ['Braided USB-C cable'],
+    images: ['https://placehold.co/1200x1200/EAE7E1/171717?text=Link+100W+Cable'],
+    variants: [
+      { sku: 'LNK100-1M-BLK', size: '1 metre', color: 'Black', stock: 30 },
+      { sku: 'LNK100-2M-BLK', size: '2 metres', color: 'Black', stock: 24, price: 2690 },
+    ],
+    collections: ['fast-charging', 'iphone-essentials'],
   },
 ];
 
+function requiredEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} must be configured before running the seed.`);
+  return value;
+}
+
 async function main() {
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@store.com').toLowerCase();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@12345';
+  const adminEmail = requiredEnv('SEED_ADMIN_EMAIL').toLowerCase();
+  const adminPassword = requiredEnv('SEED_ADMIN_PASSWORD');
   const existingAdmin = await prisma.admin.findUnique({ where: { email: adminEmail } });
   if (!existingAdmin) {
     await prisma.admin.create({
@@ -78,16 +114,32 @@ async function main() {
   for (const category of categories) {
     categoryMap[category.slug] = await prisma.category.upsert({
       where: { slug: category.slug },
-      update: {},
+      update: { name: category.name, sortOrder: category.sortOrder, isActive: true },
       create: category,
+    });
+  }
+
+  const collectionMap = {};
+  for (const collection of collections) {
+    collectionMap[collection.slug] = await prisma.collection.upsert({
+      where: { slug: collection.slug },
+      update: { name: collection.name, isFeatured: collection.isFeatured, sortOrder: collection.sortOrder },
+      create: collection,
+    });
+  }
+
+  for (const method of paymentMethods) {
+    await prisma.paymentMethod.upsert({
+      where: { code: method.code },
+      update: {},
+      create: method,
     });
   }
 
   for (const sample of samples) {
     const exists = await prisma.product.findUnique({ where: { slug: sample.slug }, select: { id: true } });
     if (exists) continue;
-    const variants = sample.variants.map(([sku, size, color, stock]) => ({ sku, size, color, stock }));
-    const totalStock = sample.stock ?? variants.reduce((sum, item) => sum + item.stock, 0);
+    const totalStock = sample.variants.reduce((sum, item) => sum + item.stock, 0);
     await prisma.product.create({
       data: {
         name: sample.name,
@@ -95,14 +147,21 @@ async function main() {
         description: sample.description,
         price: sample.price,
         stock: totalStock,
+        lowStockThreshold: 5,
         images: sample.images,
         isActive: true,
-        material: sample.material,
-        color: sample.color,
-        careInstructions: ['Follow the care label.', 'Store clean and dry.'],
+        status: 'ACTIVE',
+        brand: sample.brand,
+        model: sample.model,
+        warrantyMonths: sample.warrantyMonths,
+        compatibility: sample.compatibility,
+        specifications: sample.specifications,
+        highlights: sample.highlights,
+        whatsInBox: sample.whatsInBox,
         tags: sample.tags,
         categoryId: categoryMap[sample.category].id,
-        ...(variants.length ? { variants: { create: variants } } : {}),
+        variants: { create: sample.variants },
+        collections: { create: sample.collections.map((collectionSlug, position) => ({ collectionId: collectionMap[collectionSlug].id, position })) },
       },
     });
   }

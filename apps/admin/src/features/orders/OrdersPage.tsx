@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Eye, PackageCheck, Search, Truck } from 'lucide-react';
+import { CreditCard, ExternalLink, Eye, PackageCheck, Search, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
@@ -85,6 +85,18 @@ export function OrdersPage() {
     },
   });
 
+
+  const paymentMutation = useMutation({
+    mutationFn: async ({ id, paymentStatus }: { id: string; paymentStatus: 'PAID' | 'UNPAID' | 'REFUNDED' }) => unwrapEntity<Order>(
+      await apiRequest(ADMIN_API.orderPayment(id), { method: 'PATCH', body: { paymentStatus } }),
+      ['order'],
+    ),
+    onSuccess: async (order) => {
+      await queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setSelected(order);
+    },
+  });
+
   const shipmentMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: ShipmentForm }) => unwrapEntity<Order>(
       await apiRequest(ADMIN_API.orderShipment(id), {
@@ -114,7 +126,7 @@ export function OrdersPage() {
   });
 
   return <div>
-    <PageHeader eyebrow="Fulfilment" title="Orders" description="Payments are confirmed by Safepay webhooks. Add shipment details here when a paid order leaves your facility." />
+    <PageHeader eyebrow="Fulfilment" title="Orders" description="Manage payment confirmation, shipment tracking and order status from one fulfilment workspace." />
     <section className="panel">
       <div className="toolbar toolbar--wrap">
         <label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order, customer, or tracking" /></label>
@@ -125,7 +137,7 @@ export function OrdersPage() {
         <td><div className="stacked-cell"><strong>{order.user?.name ?? order.customer?.name ?? 'Customer'}</strong><span>{order.user?.email ?? order.customer?.email ?? '—'}</span></div></td>
         <td>{order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0}</td>
         <td><strong>{formatCurrency(order.totalAmount ?? order.total)}</strong></td>
-        <td><Badge tone={paymentTone(order.paymentStatus)}>{order.paymentStatus ?? 'UNPAID'}</Badge></td>
+        <td><Badge tone={paymentTone(order.paymentStatus)}>{order.paymentStatus ?? 'UNPAID'}</Badge><span className="table-subline">{order.paymentMethodCode ?? order.paymentProvider ?? '—'}</span></td>
         <td><Badge tone={tone(order.status)}>{order.status}</Badge></td>
         <td>{formatDate(order.createdAt)}</td>
         <td><button className="icon-button" onClick={() => setSelected(order)} title="View order"><Eye size={17} /></button></td>
@@ -140,16 +152,19 @@ export function OrdersPage() {
         </div>
 
         <div className="payment-detail-grid">
-          <div><span>Provider</span><strong>{selected.paymentProvider || '—'}</strong></div>
+          <div><span>Payment method</span><strong>{selected.paymentMethodCode || selected.paymentProvider || '—'}</strong></div>
           <div><span>Payment reference</span><strong>{selected.paymentReference || '—'}</strong></div>
           <div><span>Paid</span><strong>{selected.paidAt ? formatDate(selected.paidAt) : 'Not confirmed'}</strong></div>
-          <div><span>Delivery</span><strong>{formatCurrency(selected.shippingTotal ?? 0)}</strong></div>
+          <div><span>Delivery</span><strong>{formatCurrency(selected.shippingTotal ?? 0)}</strong></div><div><span>Discount</span><strong>{selected.discountCode ? `${selected.discountCode} · -${formatCurrency(selected.discountTotal ?? 0)}` : '—'}</strong></div>
         </div>
+
+        {selected.paymentProvider !== 'safepay' ? <div className="manual-payment-panel"><CreditCard size={19} /><div><strong>Manual payment control</strong><span>{selected.paymentMethodCode === 'cod' ? 'Cash-on-delivery orders can ship unpaid and are marked paid when delivered.' : 'Confirm an offline payment only after checking the bank or payment record.'}</span></div><div>{selected.paymentStatus !== 'PAID' ? <Button size="sm" isLoading={paymentMutation.isPending} onClick={() => paymentMutation.mutate({ id: selected.id, paymentStatus: 'PAID' })}>Mark payment received</Button> : <Badge tone="success">Payment confirmed</Badge>}</div></div> : null}
+        {paymentMutation.error ? <div className="form-alert">{paymentMutation.error.message}</div> : null}
 
         <div className="order-items">{selected.items?.map((item) => <div key={item.id}><span className="product-thumb">{item.product?.images?.[0] ? <img src={item.product.images[0]} alt="" /> : 'P'}</span><div><strong>{item.product?.name ?? item.productName ?? 'Product'}</strong><span>{item.variantLabel || `Quantity ${item.quantity}`}</span><span>Quantity {item.quantity}</span></div><strong>{formatCurrency(Number(item.unitPrice ?? item.price ?? 0) * item.quantity)}</strong></div>)}</div>
 
-        {selected.status === 'PAID' || selected.status === 'SHIPPED' ? <form className="shipment-panel" onSubmit={(event) => { event.preventDefault(); shipmentMutation.mutate({ id: selected.id, values: shipment }); }}>
-          <div className="shipment-panel__heading"><Truck size={19} /><div><strong>{selected.status === 'PAID' ? 'Create shipment' : 'Shipment details'}</strong><span>Saving a paid order as shipped sends the customer a tracking email.</span></div></div>
+        {selected.status === 'PAID' || selected.status === 'SHIPPED' || (selected.status === 'PENDING' && selected.paymentMethodCode === 'cod') ? <form className="shipment-panel" onSubmit={(event) => { event.preventDefault(); shipmentMutation.mutate({ id: selected.id, values: shipment }); }}>
+          <div className="shipment-panel__heading"><Truck size={19} /><div><strong>{selected.status === 'SHIPPED' ? 'Shipment details' : 'Create shipment'}</strong><span>Saving a paid order as shipped sends the customer a tracking email.</span></div></div>
           <div className="form-grid">
             <label className="field"><span>Carrier</span><input value={shipment.carrier} onChange={(event) => setShipment({ ...shipment, carrier: event.target.value })} placeholder="TCS, Leopards, DHL…" required /></label>
             <label className="field"><span>Tracking number</span><input value={shipment.trackingNumber} onChange={(event) => setShipment({ ...shipment, trackingNumber: event.target.value })} required /></label>
@@ -158,11 +173,11 @@ export function OrdersPage() {
           </div>
           {shipmentMutation.error ? <div className="form-alert">{shipmentMutation.error.message}</div> : null}
           <div className="shipment-actions">{selected.trackingUrl ? <a className="button button--secondary button--md" href={selected.trackingUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Open tracking</a> : <span />}
-            <Button type="submit" isLoading={shipmentMutation.isPending}>{selected.status === 'PAID' ? 'Mark shipped' : 'Update tracking'}</Button>
+            <Button type="submit" isLoading={shipmentMutation.isPending}>{selected.status === 'SHIPPED' ? 'Update tracking' : 'Mark shipped'}</Button>
           </div>
         </form> : null}
 
-        <div className="status-actions"><div><strong>Order status</strong><span>Paid status is webhook-controlled. Shipping requires carrier and tracking details.</span></div>{allowedNext[selected.status].length ? <div>{allowedNext[selected.status].map((next) => <Button key={next} variant={next === 'CANCELLED' ? 'danger' : 'primary'} isLoading={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selected.id, status: next })}>Mark {next.toLowerCase()}</Button>)}</div> : <Badge tone={tone(selected.status)}>{selected.status === 'PAID' ? 'Add shipment details above' : 'No direct transition'}</Badge>}</div>
+        <div className="status-actions"><div><strong>Order status</strong><span>Online payments are webhook-controlled; manual methods can be confirmed by authorized staff. Shipping requires carrier and tracking details.</span></div>{allowedNext[selected.status].length ? <div>{allowedNext[selected.status].map((next) => <Button key={next} variant={next === 'CANCELLED' ? 'danger' : 'primary'} isLoading={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selected.id, status: next })}>Mark {next.toLowerCase()}</Button>)}</div> : <Badge tone={tone(selected.status)}>{selected.status === 'PAID' ? 'Add shipment details above' : 'No direct transition'}</Badge>}</div>
         {updateMutation.error ? <div className="form-alert">{updateMutation.error.message}</div> : null}
         {selected.shippingAddress ? <div className="address-box"><strong>Shipping information</strong><pre>{typeof selected.shippingAddress === 'string' ? selected.shippingAddress : JSON.stringify(selected.shippingAddress, null, 2)}</pre></div> : null}
       </div> : null}

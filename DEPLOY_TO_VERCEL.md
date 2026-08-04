@@ -26,7 +26,7 @@ Commit and push to `main`. Do not commit real `.env` files or provider secrets.
 
 Use the existing managed PostgreSQL/Neon database. The backend Vercel project must retain its pooled `DATABASE_URL`.
 
-The updated backend build applies the new launch migration automatically:
+The updated backend build applies both the launch migration and the additive Cosmic Tech operations migration automatically:
 
 ```text
 prisma generate
@@ -144,7 +144,7 @@ The custom domain remains:
 https://admin.cosmictech.digital
 ```
 
-Redeploy this project after the code push to activate image uploads and shipment management.
+Redeploy this project after the code push to activate inventory, collections, discounts, bulk catalog actions, payment settings, image uploads and shipment management.
 
 ## 6. Storefront Vercel project
 
@@ -190,7 +190,11 @@ Copy the exact SPF/DKIM DNS records from Resend into Hostinger. Once verified, e
 
 No frontend Cloudinary variables are required. All Cloudinary credentials remain on `ecom-backend`; the authenticated admin receives only a short-lived upload signature plus the public cloud name/API key.
 
-## 9. Verification sequence
+## 9. Commerce operations verification
+
+After deployment, verify the new admin navigation includes Products, Inventory, Categories, Collections, Discounts, Payment Methods, Orders and Admin Accounts. Inventory, collections, discounts and manual payment settings do not require any new provider secrets.
+
+## 10. Verification sequence
 
 1. Backend `/health` reports `database: connected`.
 2. Admin login succeeds.
@@ -208,4 +212,4 @@ No frontend Cloudinary variables are required. All Cloudinary credentials remain
 - Use different customer/admin JWT secrets.
 - Never add backend secrets to a variable beginning with `VITE_`.
 - Do not commit `.env` files.
-- The hardcoded legacy fallback credential issue from audit item 1 remains unresolved in this package because this sprint covered items 2–6 only.
+- The seed and reset scripts now require `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` and fail safely when either is missing. Remove any old credential documentation from the existing repository history and rotate exposed credentials.

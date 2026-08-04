@@ -57,7 +57,7 @@ export function LoginPage() {
           <div className="login-card__header"><span>Administrator access</span><h2>Welcome back</h2><p>Sign in with an account created by a superadmin.</p></div>
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             {apiError ? <div className="form-alert">{apiError}</div> : null}
-            <label className="field"><span>Email address</span><input type="email" autoComplete="username" placeholder="admin@store.com" {...register('email')} />{errors.email ? <small>{errors.email.message}</small> : null}</label>
+            <label className="field"><span>Email address</span><input type="email" autoComplete="username" placeholder="your-admin@example.com" {...register('email')} />{errors.email ? <small>{errors.email.message}</small> : null}</label>
             <label className="field"><span>Password</span><input type="password" autoComplete="current-password" placeholder="Enter your password" {...register('password')} />{errors.password ? <small>{errors.password.message}</small> : null}</label>
             <Button type="submit" isLoading={isSubmitting} className="button--full">Sign in securely <ArrowRight size={17} /></Button>
           </form>

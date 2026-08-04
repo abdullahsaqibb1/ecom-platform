@@ -1,13 +1,17 @@
 import {
+  BadgePercent,
   Boxes,
   ChevronDown,
   CircleGauge,
+  CreditCard,
   FolderTree,
   LogOut,
+  Layers3,
   Menu,
   PackageCheck,
   ShieldCheck,
   UsersRound,
+  Warehouse,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -18,8 +22,12 @@ import { initials } from '../lib/format';
 const baseNav = [
   { to: '/', label: 'Overview', icon: CircleGauge },
   { to: '/products', label: 'Products', icon: Boxes },
+  { to: '/inventory', label: 'Inventory', icon: Warehouse },
   { to: '/orders', label: 'Orders', icon: PackageCheck },
   { to: '/categories', label: 'Categories', icon: FolderTree },
+  { to: '/collections', label: 'Collections', icon: Layers3 },
+  { to: '/discounts', label: 'Discounts', icon: BadgePercent },
+  { to: '/payments', label: 'Payment methods', icon: CreditCard },
 ];
 
 export function AdminLayout() {
@@ -36,7 +44,7 @@ export function AdminLayout() {
       <aside className={`sidebar ${mobileOpen ? 'sidebar--open' : ''}`}>
         <div className="sidebar__brand">
           <div className="brand-mark"><ShieldCheck size={22} /></div>
-          <div><strong>Commerce</strong><span>Admin console</span></div>
+          <div><strong>Cosmic Tech</strong><span>Commerce operations</span></div>
           <button className="icon-button sidebar__close" onClick={() => setMobileOpen(false)}><X size={20} /></button>
         </div>
         <nav className="sidebar__nav">

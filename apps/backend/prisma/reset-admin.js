@@ -4,9 +4,15 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
+function requiredEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} must be configured before resetting an admin.`);
+  return value;
+}
+
 async function main() {
-  const email = (process.env.SEED_ADMIN_EMAIL || 'admin@store.com').toLowerCase();
-  const password = process.env.SEED_ADMIN_PASSWORD || 'Admin@12345';
+  const email = requiredEnv('SEED_ADMIN_EMAIL').toLowerCase();
+  const password = requiredEnv('SEED_ADMIN_PASSWORD');
   const passwordHash = await bcrypt.hash(password, 12);
   const admin = await prisma.admin.upsert({
     where: { email },

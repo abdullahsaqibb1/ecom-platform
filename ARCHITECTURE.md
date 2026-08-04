@@ -83,3 +83,27 @@ The Cloudinary API secret never enters the browser bundle.
 
 - `PaymentEvent(provider,eventId)` is unique, preventing duplicate webhook state changes.
 - `NotificationLog(orderId,type)` is unique, preventing duplicate emails for each order event.
+
+## Catalog and merchandising model
+
+- `Category` is the product taxonomy and supports parent/child structure.
+- `Collection` is a curated merchandising entity.
+- `CollectionProduct` is the many-to-many membership and ordering table.
+- `Product` stores shared technical identity, specifications, compatibility, pricing and aggregate stock.
+- `ProductVariant` stores sellable configurations/SKUs, configuration price/cost and stock.
+
+## Inventory transaction model
+
+- A completed order allocation decrements the selected configuration and aggregate product stock in the same serializable order transaction.
+- Every sale creates `InventoryMovement` records.
+- Cancellation restores both levels and writes cancellation movements.
+- Admin adjustments reject negative resulting stock and record admin, reason, type, reference and resulting quantity.
+- Product-editor stock changes also create ledger entries.
+
+## Discount model
+
+Discount eligibility, scope, amount, usage limits and per-customer limits are evaluated inside the backend transaction. Product, category and collection targeting is resolved against authoritative database membership. The storefront only displays the returned calculation.
+
+## Payment-method boundary
+
+The database stores safe operational settings such as display name, instructions, order, enabled state and non-secret configuration. Provider credentials remain in backend environment variables. Public checkout only receives enabled methods whose provider environment is ready.

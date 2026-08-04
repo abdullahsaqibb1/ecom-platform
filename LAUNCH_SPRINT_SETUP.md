@@ -1,3 +1,7 @@
+# Historical provider setup guide
+
+This file covers the earlier Cloudinary/Safepay/Resend launch sprint. For the current inventory, collections, discounts, payment-method administration and bulk catalog update, read `TECH_COMMERCE_OPERATIONS.md` and `UPDATE_EXISTING_DEPLOYMENT.md`.
+
 # Launch Sprint Setup — Images, Payments, Tracking, and Email
 
 This package implements requested items 2–6:
