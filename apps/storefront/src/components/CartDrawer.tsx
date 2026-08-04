@@ -12,12 +12,12 @@ export function CartDrawer() {
         <div className="drawer-head"><div><p className="eyebrow">Your selection</p><h2>Shopping bag</h2></div><button className="icon-button" onClick={closeCart}><X /></button></div>
         <div className="drawer-content">
           {items.length === 0 ? (
-            <div className="empty-state"><ShoppingBag size={34} strokeWidth={1.2} /><h3>Your bag is empty</h3><p>Explore the latest pieces and build your selection.</p><Link to="/collections/all" className="button dark" onClick={closeCart}>Shop all</Link></div>
+            <div className="empty-state"><ShoppingBag size={34} strokeWidth={1.2} /><h3>Your bag is empty</h3><p>Explore audio, charging and everyday tech essentials.</p><Link to="/collections/all" className="button dark" onClick={closeCart}>Shop all</Link></div>
           ) : items.map((item) => (
             <div className="cart-line" key={item.key}>
               <Link to={productPath(item.product)} onClick={closeCart}><img src={item.variant?.image || item.product.images[0]} alt={item.product.name} /></Link>
               <div className="cart-line-main">
-                <div><Link to={productPath(item.product)} onClick={closeCart}>{item.product.name}</Link><p>{[item.variant?.color, item.variant?.size].filter(Boolean).join(' / ') || item.product.color}</p></div>
+                <div><Link to={productPath(item.product)} onClick={closeCart}>{item.product.name}</Link><p>{[item.variant?.size, item.variant?.color].filter(Boolean).join(' / ') || item.product.color}</p></div>
                 <div className="cart-line-bottom">
                   <div className="quantity-control"><button onClick={() => updateQuantity(item.key, item.quantity - 1)}><Minus size={13} /></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.key, item.quantity + 1)}><Plus size={13} /></button></div>
                   <span>{formatMoney((Number(item.variant?.price ?? item.product.price)) * item.quantity)}</span>

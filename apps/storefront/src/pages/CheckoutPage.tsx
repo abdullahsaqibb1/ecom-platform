@@ -59,7 +59,7 @@ export function CheckoutPage() {
     </div>
     <aside className="checkout-summary">
       <h2>Your selection</h2>
-      {items.map((item) => <div className="summary-line" key={item.key}><img src={item.product.images[0]} alt={item.product.name} /><div><strong>{item.product.name}</strong><span>{[item.variant?.color, item.variant?.size].filter(Boolean).join(' / ')}</span><span>Qty {item.quantity}</span></div><b>{formatMoney(Number(item.variant?.price ?? item.product.price) * item.quantity)}</b></div>)}
+      {items.map((item) => <div className="summary-line" key={item.key}><img src={item.product.images[0]} alt={item.product.name} /><div><strong>{item.product.name}</strong><span>{[item.variant?.size, item.variant?.color].filter(Boolean).join(' / ')}</span><span>Qty {item.quantity}</span></div><b>{formatMoney(Number(item.variant?.price ?? item.product.price) * item.quantity)}</b></div>)}
       <div className="summary-totals"><div><span>Subtotal</span><span>{formatMoney(subtotal)}</span></div><div><span>Delivery</span><span>{shipping ? formatMoney(shipping) : 'Complimentary'}</span></div><div className="grand-total"><span>Total</span><strong>{formatMoney(subtotal + shipping)}</strong></div></div>
     </aside>
   </section>;

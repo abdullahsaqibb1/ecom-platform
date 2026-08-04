@@ -7,6 +7,8 @@ import { useCart } from '../contexts/CartContext';
 export function ProductCard({ product, compact = false }: { product: Product; compact?: boolean }) {
   const { addItem } = useCart();
   const variant = product.variants?.find((item) => item.stock > 0);
+  const meta = [product.category?.name, product.material].filter(Boolean).join(' · ');
+
   return (
     <article className={`product-card ${compact ? 'compact' : ''}`}>
       <Link to={productPath(product)} className="product-image-wrap" aria-label={product.name}>
@@ -17,7 +19,7 @@ export function ProductCard({ product, compact = false }: { product: Product; co
       <div className="product-card-body">
         <div>
           <Link to={productPath(product)} className="product-name">{product.name}</Link>
-          <p className="product-meta">{product.color || product.category?.name}</p>
+          <p className="product-meta">{meta || product.color || 'Everyday tech'}</p>
         </div>
         <div className="product-card-foot">
           <span>{formatMoney(product.price)}</span>

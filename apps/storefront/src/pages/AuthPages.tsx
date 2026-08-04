@@ -25,5 +25,5 @@ export function RegisterPage() {
 }
 
 function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
-  return <section className="auth-page"><div className="auth-visual"><img src="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=1400&q=88" alt="" /></div><div className="auth-panel"><div><p className="eyebrow">Customer account</p><h1>{title}</h1><p>{subtitle}</p>{children}</div></div></section>;
+  return <section className="auth-page"><div className="auth-visual"><img src="https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=1400&q=88" alt="" /></div><div className="auth-panel"><div><p className="eyebrow">Customer account</p><h1>{title}</h1><p>{subtitle}</p>{children}</div></div></section>;
 }

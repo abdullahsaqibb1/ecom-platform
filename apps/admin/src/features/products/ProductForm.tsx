@@ -121,11 +121,11 @@ export function ProductForm({ product, categories, isSubmitting, onSubmit, onCan
   return (
     <form className="form-stack" onSubmit={handleSubmit(onSubmit)}>
       <div className="form-grid">
-        <label className="field field--wide"><span>Product name</span><input placeholder="Premium linen shirt" {...register('name')} />{errors.name ? <small>{errors.name.message}</small> : null}</label>
+        <label className="field field--wide"><span>Product name</span><input placeholder="Wireless earbuds or 65W charger" {...register('name')} />{errors.name ? <small>{errors.name.message}</small> : null}</label>
         <label className="field"><span>Base price</span><div className="input-prefix"><span>Rs</span><input type="number" min="0" step="0.01" {...register('price', { valueAsNumber: true })} /></div>{errors.price ? <small>{errors.price.message}</small> : null}</label>
         <label className="field"><span>{watchedVariants.length ? 'Total variant stock' : 'Stock'}</span>{watchedVariants.length ? <input type="number" value={variantStock} disabled /> : <input type="number" min="0" step="1" {...register('stock', { valueAsNumber: true })} />}{errors.stock ? <small>{errors.stock.message}</small> : null}</label>
         <label className="field field--wide"><span>Category</span><select {...register('categoryId')}><option value="">Uncategorized</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-        <label className="field field--wide"><span>Description</span><textarea rows={5} placeholder="Describe the product, materials, sizing, and key details." {...register('description')} />{errors.description ? <small>{errors.description.message}</small> : null}</label>
+        <label className="field field--wide"><span>Description</span><textarea rows={5} placeholder="Describe compatibility, power, connection type, features, and what is included." {...register('description')} />{errors.description ? <small>{errors.description.message}</small> : null}</label>
       </div>
 
       <div className="form-section">
@@ -158,19 +158,19 @@ export function ProductForm({ product, categories, isSubmitting, onSubmit, onCan
       </div>
 
       <div className="form-section">
-        <div className="form-section__header"><div><strong>Size and color variants</strong><span>Each combination has its own SKU, price override, inventory, and optional image.</span></div><Button type="button" variant="secondary" size="sm" onClick={() => variants.append({ sku: '', size: '', color: '', price: undefined, stock: 0, image: '' })}><Plus size={15} /> Add variant</Button></div>
+        <div className="form-section__header"><div><strong>Product configurations</strong><span>Use configurations for model, connector, length, power, capacity, finish, or device compatibility.</span></div><Button type="button" variant="secondary" size="sm" onClick={() => variants.append({ sku: '', size: '', color: '', price: undefined, stock: 0, image: '' })}><Plus size={15} /> Add variant</Button></div>
         {variants.fields.length ? <div className="variant-editor">
           {variants.fields.map((field, index) => <div className="variant-row" key={field._key}>
             <input type="hidden" {...register(`variants.${index}.id`)} />
-            <label className="field"><span>SKU</span><input placeholder="SHIRT-BLK-M" {...register(`variants.${index}.sku`)} />{errors.variants?.[index]?.sku ? <small>{errors.variants[index]?.sku?.message}</small> : null}</label>
-            <label className="field"><span>Size</span><input placeholder="M" {...register(`variants.${index}.size`)} /></label>
-            <label className="field"><span>Color</span><input placeholder="Black" {...register(`variants.${index}.color`)} /></label>
+            <label className="field"><span>SKU</span><input placeholder="CHARGER-65W-UK" {...register(`variants.${index}.sku`)} />{errors.variants?.[index]?.sku ? <small>{errors.variants[index]?.sku?.message}</small> : null}</label>
+            <label className="field"><span>Option / configuration</span><input placeholder="65W · UK plug" {...register(`variants.${index}.size`)} /></label>
+            <label className="field"><span>Finish / color</span><input placeholder="Graphite" {...register(`variants.${index}.color`)} /></label>
             <label className="field"><span>Price override</span><input type="number" min="0" step="0.01" placeholder="Use base price" {...register(`variants.${index}.price`, { setValueAs: (value) => value === '' ? undefined : Number(value) })} /></label>
             <label className="field"><span>Stock</span><input type="number" min="0" step="1" {...register(`variants.${index}.stock`, { valueAsNumber: true })} />{errors.variants?.[index]?.stock ? <small>{errors.variants[index]?.stock?.message}</small> : null}</label>
             <label className="field variant-image"><span>Variant image</span><input list="product-image-urls" placeholder="Choose an uploaded image or paste URL" {...register(`variants.${index}.image`)} /></label>
             <button type="button" className="icon-button icon-button--danger variant-remove" onClick={() => variants.remove(index)} title="Remove variant"><Trash2 size={16} /></button>
           </div>)}
-        </div> : <p className="form-hint">No variants. The product-level stock field will be used.</p>}
+        </div> : <p className="form-hint">No configurations. The product-level stock field will be used.</p>}
       </div>
 
       <label className="switch-row"><input type="checkbox" {...register('isActive')} /><span className="switch" /><div><strong>Active listing</strong><span>Visible and available for purchase on the storefront.</span></div></label>
