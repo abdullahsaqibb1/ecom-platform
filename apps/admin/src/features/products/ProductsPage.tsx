@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Boxes, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Archive, Boxes, Pencil, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
