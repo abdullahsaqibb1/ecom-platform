@@ -277,6 +277,33 @@ const themeSchema = z.object({
   cream: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/),
 }).strict();
 
+const storefrontFontFamilySchema = z.enum([
+  'Italiana', 'Cormorant Garamond', 'Playfair Display', 'Bodoni Moda', 'DM Serif Display',
+  'Libre Baskerville', 'Instrument Serif', 'Lora', 'DM Sans', 'Inter', 'Manrope',
+  'Plus Jakarta Sans', 'Montserrat', 'Poppins', 'Nunito Sans', 'Work Sans',
+  'Source Sans 3', 'Space Grotesk',
+]);
+const storefrontFontWeightSchema = z.union([z.literal(400), z.literal(500), z.literal(600), z.literal(700)]);
+const storefrontTrackingSchema = z.coerce.number().min(-0.08).max(0.25);
+const typographySchema = z.object({
+  preset: z.enum(['COSMIC_EDITORIAL', 'MODERN_LUXURY', 'FASHION_MAGAZINE', 'CLEAN_COMMERCE', 'MINIMAL_TECH', 'MODERN_SANS', 'CUSTOM']),
+  displayFont: storefrontFontFamilySchema,
+  bodyFont: storefrontFontFamilySchema,
+  navFont: storefrontFontFamilySchema,
+  buttonFont: storefrontFontFamilySchema,
+  labelFont: storefrontFontFamilySchema,
+  displayWeight: storefrontFontWeightSchema,
+  bodyWeight: storefrontFontWeightSchema,
+  navWeight: storefrontFontWeightSchema,
+  buttonWeight: storefrontFontWeightSchema,
+  labelWeight: storefrontFontWeightSchema,
+  displayLetterSpacing: storefrontTrackingSchema,
+  bodyLetterSpacing: storefrontTrackingSchema,
+  navLetterSpacing: storefrontTrackingSchema,
+  buttonLetterSpacing: storefrontTrackingSchema,
+  labelLetterSpacing: storefrontTrackingSchema,
+}).strict();
+
 const storefrontSettingsSchema = z.object({
   siteName: z.string().trim().min(2).max(120),
   logoUrl: optionalHttpUrl,
@@ -291,6 +318,7 @@ const storefrontSettingsSchema = z.object({
   homepage: homepageSchema,
   footer: footerSchema,
   theme: themeSchema,
+  typography: typographySchema.optional(),
 }).strict();
 
 const contentPageFields = {

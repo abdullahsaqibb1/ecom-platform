@@ -249,6 +249,26 @@ export interface FinanceDashboard {
 }
 
 export interface StorefrontLink { label: string; href: string; isVisible?: boolean }
+export type StorefrontFontFamily = 'Italiana' | 'Cormorant Garamond' | 'Playfair Display' | 'Bodoni Moda' | 'DM Serif Display' | 'Libre Baskerville' | 'Instrument Serif' | 'Lora' | 'DM Sans' | 'Inter' | 'Manrope' | 'Plus Jakarta Sans' | 'Montserrat' | 'Poppins' | 'Nunito Sans' | 'Work Sans' | 'Source Sans 3' | 'Space Grotesk';
+export type StorefrontTypographyPreset = 'COSMIC_EDITORIAL' | 'MODERN_LUXURY' | 'FASHION_MAGAZINE' | 'CLEAN_COMMERCE' | 'MINIMAL_TECH' | 'MODERN_SANS' | 'CUSTOM';
+export interface StorefrontTypography {
+  preset: StorefrontTypographyPreset;
+  displayFont: StorefrontFontFamily;
+  bodyFont: StorefrontFontFamily;
+  navFont: StorefrontFontFamily;
+  buttonFont: StorefrontFontFamily;
+  labelFont: StorefrontFontFamily;
+  displayWeight: 400 | 500 | 600 | 700;
+  bodyWeight: 400 | 500 | 600 | 700;
+  navWeight: 400 | 500 | 600 | 700;
+  buttonWeight: 400 | 500 | 600 | 700;
+  labelWeight: 400 | 500 | 600 | 700;
+  displayLetterSpacing: number;
+  bodyLetterSpacing: number;
+  navLetterSpacing: number;
+  buttonLetterSpacing: number;
+  labelLetterSpacing: number;
+}
 export interface StorefrontSettings {
   id?: string;
   siteName: string;
@@ -274,6 +294,7 @@ export interface StorefrontSettings {
     supportHeading: string; supportLines: string[]; legalLinks: StorefrontLink[];
   };
   theme: { paper: string; ink: string; muted: string; soft: string; cream: string };
+  typography: StorefrontTypography;
   updatedAt?: string;
 }
 

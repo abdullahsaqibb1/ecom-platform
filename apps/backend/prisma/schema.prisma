@@ -431,6 +431,7 @@ model StorefrontSettings {
   homepage              Json
   footer                Json
   theme                 Json
+  typography            Json?
   updatedByAdminId      String?  @db.Uuid
   updatedBy             Admin?   @relation(fields: [updatedByAdminId], references: [id], onDelete: SetNull)
   createdAt             DateTime @default(now())

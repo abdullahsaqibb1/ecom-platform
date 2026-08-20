@@ -90,6 +90,26 @@ const DEFAULT_THEME = {
   cream: '#dfd5c5',
 };
 
+
+const DEFAULT_TYPOGRAPHY = {
+  preset: 'COSMIC_EDITORIAL',
+  displayFont: 'Italiana',
+  bodyFont: 'DM Sans',
+  navFont: 'DM Sans',
+  buttonFont: 'DM Sans',
+  labelFont: 'DM Sans',
+  displayWeight: 400,
+  bodyWeight: 400,
+  navWeight: 500,
+  buttonWeight: 600,
+  labelWeight: 600,
+  displayLetterSpacing: -0.02,
+  bodyLetterSpacing: 0,
+  navLetterSpacing: 0.08,
+  buttonLetterSpacing: 0.10,
+  labelLetterSpacing: 0.14,
+};
+
 function defaultStorefrontData() {
   return {
     id: 'primary',
@@ -106,6 +126,7 @@ function defaultStorefrontData() {
     homepage: DEFAULT_HOMEPAGE,
     footer: DEFAULT_FOOTER,
     theme: DEFAULT_THEME,
+    typography: DEFAULT_TYPOGRAPHY,
   };
 }
 
@@ -132,6 +153,7 @@ function publicStorefrontSettings(row) {
     homepage: mergeObject(defaults.homepage, row.homepage),
     footer: mergeObject(defaults.footer, row.footer),
     theme: mergeObject(defaults.theme, row.theme),
+    typography: mergeObject(defaults.typography, row.typography),
   };
 }
 
@@ -140,6 +162,7 @@ module.exports = {
   DEFAULT_HOMEPAGE,
   DEFAULT_FOOTER,
   DEFAULT_THEME,
+  DEFAULT_TYPOGRAPHY,
   defaultStorefrontData,
   publicStorefrontSettings,
 };

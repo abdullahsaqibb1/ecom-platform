@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Italiana&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=Instrument+Serif&family=Inter:wght@400;500;600;700&family=Italiana&family=Libre+Baskerville:wght@400;700&family=Lora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Nunito+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #142033;
@@ -627,3 +627,26 @@ tbody tr:hover { background: #f8f5f0; }
 .content-section-editor > article { border:1px solid var(--line); background:#f8f5f0; padding:15px; margin-top:10px; }
 
 .turnstile-wrap { min-height: 65px; display:flex; align-items:center; }
+
+/* Storefront Studio typography controls */
+.typography-presets { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.typography-preset { min-height:132px; padding:18px; text-align:left; border:1px solid var(--line); border-radius:12px; background:#fffdfa; display:flex; flex-direction:column; gap:7px; transition:.18s ease; }
+.typography-preset:hover { border-color:#aeb7c6; transform:translateY(-1px); }
+.typography-preset.active { border-color:#171717; box-shadow:inset 0 0 0 1px #171717; }
+.typography-preset strong { color:#171717; font-size:24px; line-height:1.05; font-weight:400; }
+.typography-preset span { color:var(--muted); font-size:12px; line-height:1.45; }
+.typography-preset small { margin-top:auto; color:#343b48; font-size:10px; letter-spacing:.03em; }
+.typography-controls { display:grid; gap:10px; }
+.typography-control-row { display:grid; grid-template-columns:100px minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:end; padding-bottom:10px; border-bottom:1px solid var(--line); }
+.typography-control-row:last-child { border-bottom:0; padding-bottom:0; }
+.typography-control-row > strong { align-self:center; color:#343b48; font-size:12px; }
+.typography-preview { overflow:hidden; }
+.typography-preview .cms-panel__body { padding:clamp(28px,5vw,62px); background:#f7f5f1; color:#171717; }
+.typography-preview__status { display:inline-flex; align-items:center; min-height:28px; padding:0 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:10px; }
+.typography-preview__eyebrow { margin:0 0 14px; font-size:10px; text-transform:uppercase; }
+.typography-preview h3 { max-width:900px; margin:0 0 22px; font-size:clamp(42px,6vw,76px); line-height:.98; }
+.typography-preview__body { max-width:680px; margin:0 0 30px; color:#65615c; font-size:14px; line-height:1.75; }
+.typography-preview__nav { display:flex; flex-wrap:wrap; gap:24px; margin-bottom:24px; font-size:10px; }
+.typography-preview__button { min-height:44px; padding:0 20px; border:1px solid #171717; background:#171717; color:white; font-size:10px; }
+@media (max-width:1000px) { .typography-presets { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:700px) { .typography-presets { grid-template-columns:1fr; } .typography-control-row { grid-template-columns:1fr; } }

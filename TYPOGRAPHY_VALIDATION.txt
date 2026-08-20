@@ -1,0 +1,20 @@
+Cosmic Tech Typography Studio — validation
+Date: 2026-08-21
+
+Passed:
+- Backend JavaScript syntax checks for changed backend files.
+- Existing package structure/implementation marker checks.
+- Existing repository security audit.
+- Existing Safepay launch-sprint tests.
+- Admin/storefront TypeScript parsing reached only expected missing dependency/import-meta errors in the offline workspace; no new syntax/type diagnostics from the typography implementation were reported.
+- Admin and storefront CSS braces/parentheses are balanced.
+- Migration is additive and nullable: StorefrontSettings.typography JSONB.
+- No secrets or new environment variables introduced.
+- Existing storefront typography remains the fallback until an admin publishes new settings.
+
+Production verification after GitHub/Vercel deployment:
+- Prisma migrate deploy applies 202608210001_storefront_typography.
+- Admin Typography tab loads current settings.
+- Publish persists typography through /api/admin/storefront.
+- /api/storefront/config returns typography.
+- Storefront Google Font requests are allowed by the existing CSP and the selected font renders on the live domain.

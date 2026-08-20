@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import type { StorefrontSettings } from '../types/domain';
+import type { StorefrontFontFamily, StorefrontSettings } from '../types/domain';
 import { getStorefrontSettings } from './api';
 
 export const fallbackStorefrontSettings: StorefrontSettings = {
@@ -44,7 +44,17 @@ export const fallbackStorefrontSettings: StorefrontSettings = {
     supportHeading: 'Support', supportLines: ['Pakistan-wide delivery', 'Monday–Saturday', '9:00–21:00 PKT'], legalLinks: [{ label: 'Privacy', href: '/pages/privacy' }, { label: 'Terms', href: '/pages/terms' }],
   },
   theme: { paper: '#f7f5f1', ink: '#171717', muted: '#6e6b66', soft: '#ece8e1', cream: '#dfd5c5' },
+  typography: {
+    preset: 'COSMIC_EDITORIAL', displayFont: 'Italiana', bodyFont: 'DM Sans', navFont: 'DM Sans', buttonFont: 'DM Sans', labelFont: 'DM Sans',
+    displayWeight: 400, bodyWeight: 400, navWeight: 500, buttonWeight: 600, labelWeight: 600,
+    displayLetterSpacing: -0.02, bodyLetterSpacing: 0, navLetterSpacing: 0.08, buttonLetterSpacing: 0.10, labelLetterSpacing: 0.14,
+  },
 };
+
+const SERIF_FONTS = new Set<StorefrontFontFamily>(['Italiana', 'Cormorant Garamond', 'Playfair Display', 'Bodoni Moda', 'DM Serif Display', 'Libre Baskerville', 'Instrument Serif', 'Lora']);
+function fontStack(font: StorefrontFontFamily) {
+  return `"${font}", ${SERIF_FONTS.has(font) ? 'Georgia, serif' : 'Arial, sans-serif'}`;
+}
 
 export function useStorefrontConfig() {
   const query = useQuery({ queryKey: ['storefront-config'], queryFn: getStorefrontSettings, staleTime: 60_000, retry: 1 });
@@ -56,6 +66,21 @@ export function useStorefrontConfig() {
     root.style.setProperty('--muted', settings.theme.muted);
     root.style.setProperty('--soft', settings.theme.soft);
     root.style.setProperty('--cream', settings.theme.cream);
+    root.style.setProperty('--font-display', fontStack(settings.typography.displayFont));
+    root.style.setProperty('--font-body', fontStack(settings.typography.bodyFont));
+    root.style.setProperty('--font-nav', fontStack(settings.typography.navFont));
+    root.style.setProperty('--font-button', fontStack(settings.typography.buttonFont));
+    root.style.setProperty('--font-label', fontStack(settings.typography.labelFont));
+    root.style.setProperty('--font-display-weight', String(settings.typography.displayWeight));
+    root.style.setProperty('--font-body-weight', String(settings.typography.bodyWeight));
+    root.style.setProperty('--font-nav-weight', String(settings.typography.navWeight));
+    root.style.setProperty('--font-button-weight', String(settings.typography.buttonWeight));
+    root.style.setProperty('--font-label-weight', String(settings.typography.labelWeight));
+    root.style.setProperty('--tracking-display', `${settings.typography.displayLetterSpacing}em`);
+    root.style.setProperty('--tracking-body', `${settings.typography.bodyLetterSpacing}em`);
+    root.style.setProperty('--tracking-nav', `${settings.typography.navLetterSpacing}em`);
+    root.style.setProperty('--tracking-button', `${settings.typography.buttonLetterSpacing}em`);
+    root.style.setProperty('--tracking-label', `${settings.typography.labelLetterSpacing}em`);
     document.title = settings.siteName;
     if (settings.faviconUrl) {
       let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
