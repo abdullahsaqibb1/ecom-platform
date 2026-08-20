@@ -21,9 +21,14 @@ const customerRegisterSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email,
   password,
+  turnstileToken: z.string().trim().min(1).max(2048).optional(),
 }).strict();
 
-const loginSchema = z.object({ email, password }).strict();
+const loginSchema = z.object({
+  email,
+  password,
+  turnstileToken: z.string().trim().min(1).max(2048).optional(),
+}).strict();
 
 const adminCreateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
@@ -176,7 +181,7 @@ const shippingAddressSchema = z.object({
   city: z.string().trim().min(2).max(100),
   province: z.string().trim().min(2).max(100),
   postalCode: z.string().trim().max(30).optional().default(''),
-}).passthrough();
+}).strict();
 
 const orderCreateSchema = z.object({
   items: z.array(z.object({

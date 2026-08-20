@@ -23,7 +23,6 @@ function publicPaymentMethod(method) {
     instructions: method.instructions,
     requiresOnlinePayment: method.requiresOnlinePayment,
     sortOrder: method.sortOrder,
-    configuration: method.configuration || {},
   };
 }
 

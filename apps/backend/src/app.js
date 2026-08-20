@@ -15,6 +15,7 @@ const {
   requireCustomer,
   requireAdmin,
   requireSuperadmin,
+  legacyBearerEnabled,
 } = require('./auth');
 const {
   customerRegisterSchema,
@@ -50,7 +51,7 @@ const {
   verifySafepayWebhook,
 } = require('./safepay');
 const { emailEvents } = require('./email');
-const { createUploadSignature, destroyAsset } = require('./cloudinary');
+const { createUploadSignature, verifyUploadedAsset, destroyAsset } = require('./cloudinary');
 const { defaultStorefrontData, publicStorefrontSettings } = require('./storefront-config');
 const {
   paymentProviderReady,
@@ -60,6 +61,18 @@ const {
   evaluateDiscount,
   createInventoryMovement,
 } = require('./commerce');
+const {
+  createCustomerSession,
+  createAdminSession,
+  rotateCustomerCsrf,
+  rotateAdminCsrf,
+  revokeCustomerSession,
+  revokeAdminSession,
+  protectShippingAddress,
+  revealShippingAddress,
+  verifyTurnstile,
+  forceHttps,
+} = require('./security');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -73,20 +86,39 @@ function splitOrigins(value) {
 }
 
 const allowedOrigins = new Set([
-  'http://localhost:5173',
-  'http://localhost:5174',
+  ...(process.env.NODE_ENV !== 'production' || process.env.ALLOW_LOCAL_ORIGINS === 'true'
+    ? ['http://localhost:5173', 'http://localhost:5174']
+    : []),
   ...splitOrigins(process.env.CUSTOMER_ORIGINS),
   ...splitOrigins(process.env.ADMIN_ORIGINS),
 ]);
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(forceHttps);
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      baseUri: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  },
+  hsts: process.env.NODE_ENV === 'production'
+    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    : false,
+  referrerPolicy: { policy: 'no-referrer' },
+}));
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.has(origin.replace(/\/$/, ''))) return callback(null, true);
     return callback(new AppError(403, 'This origin is not allowed by CORS.'));
   },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+  exposedHeaders: ['RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset'],
   maxAge: 86400,
 }));
 app.use(express.json({
@@ -98,23 +130,53 @@ app.use(express.json({
   },
 }));
 
+app.param('id', (req, _res, next, value) => {
+  if (!isUuid(value)) return next(new AppError(400, 'The record identifier is invalid.'));
+  return next();
+});
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 500,
-  standardHeaders: true,
+  limit: 350,
+  standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { message: 'Too many requests. Please try again later.' },
 });
-const authLimiter = rateLimit({
+const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
-  standardHeaders: true,
+  limit: 8,
+  standardHeaders: 'draft-8',
   legacyHeaders: false,
-  message: { message: 'Too many authentication attempts. Please try again later.' },
+  skipSuccessfulRequests: true,
+  message: { message: 'Too many sign-in attempts. Wait 15 minutes and try again.' },
+});
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many account-creation attempts. Please try again later.' },
+});
+const orderLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many order attempts. Please try again later.' },
+});
+const adminMutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 180,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many administrative changes. Please wait and retry.' },
 });
 app.use('/api', apiLimiter);
-app.use('/api/auth', authLimiter);
-app.use('/api/admin/auth', authLimiter);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/admin/auth/login', loginLimiter);
+app.use('/api/auth/register', registrationLimiter);
+app.use('/api/orders', (req, res, next) => req.method === 'POST' ? orderLimiter(req, res, next) : next());
+app.use('/api/admin', (req, res, next) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) ? adminMutationLimiter(req, res, next) : next());
 
 const productInclude = {
   category: { select: { id: true, name: true, slug: true } },
@@ -136,6 +198,55 @@ const orderInclude = {
 
 function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt };
+}
+
+function publicVariant(variant) {
+  if (!variant) return variant;
+  const {
+    costPrice: _costPrice,
+    lowStockThreshold: _lowStockThreshold,
+    ...safe
+  } = variant;
+  return safe;
+}
+
+function publicProduct(product) {
+  if (!product) return product;
+  const {
+    costPrice: _costPrice,
+    lowStockThreshold: _lowStockThreshold,
+    inventoryMovements: _inventoryMovements,
+    orderItems: _orderItems,
+    ...safe
+  } = product;
+  if (Array.isArray(safe.variants)) safe.variants = safe.variants.map(publicVariant);
+  return safe;
+}
+
+function publicOrder(order) {
+  if (!order) return order;
+  const revealed = revealShippingAddress(order);
+  const {
+    paymentTracker: _paymentTracker,
+    paymentReference: _paymentReference,
+    paymentEvents: _paymentEvents,
+    notifications: _notifications,
+    user: _user,
+    ...safe
+  } = revealed;
+  if (Array.isArray(safe.items)) {
+    safe.items = safe.items.map((item) => {
+      const { unitCost: _unitCost, ...safeItem } = item;
+      if (safeItem.product) safeItem.product = publicProduct(safeItem.product);
+      if (safeItem.variant) safeItem.variant = publicVariant(safeItem.variant);
+      return safeItem;
+    });
+  }
+  return safe;
+}
+
+function adminOrder(order) {
+  return revealShippingAddress(order);
 }
 
 function baseSlug(value) {
@@ -233,6 +344,21 @@ function parsePagination(query, maxLimit = 100) {
   const page = Math.max(1, Number.parseInt(String(query.page || '1'), 10) || 1);
   const limit = Math.min(maxLimit, Math.max(1, Number.parseInt(String(query.limit || '24'), 10) || 24));
   return { page, limit, skip: (page - 1) * limit };
+}
+
+function queryText(value, name, maxLength) {
+  if (value == null || value === '') return '';
+  if (typeof value !== 'string') throw new AppError(400, `${name} must be a single text value.`);
+  const cleaned = value.trim();
+  if (cleaned.length > maxLength) throw new AppError(400, `${name} is too long.`);
+  return cleaned;
+}
+
+function queryChoice(value, name, allowed, fallback) {
+  const cleaned = queryText(value, name, 50);
+  if (!cleaned) return fallback;
+  if (!allowed.includes(cleaned)) throw new AppError(400, `${name} has an unsupported value.`);
+  return cleaned;
 }
 
 function decimalFromEnv(name, fallback) {
@@ -616,9 +742,10 @@ app.post('/api/webhooks/safepay', asyncRoute(async (req, res) => {
   });
 }));
 
-// Customer authentication: customer tokens are signed with the customer-only secret.
+// Customer authentication uses an opaque HttpOnly session cookie. Legacy bearer tokens can be enabled temporarily during migration.
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const body = validate(customerRegisterSchema, req.body);
+  await verifyTurnstile(body.turnstileToken, req);
   const exists = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
   if (exists) throw new AppError(409, 'A customer account with this email already exists.');
   const user = await prisma.user.create({
@@ -628,21 +755,40 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
       passwordHash: await bcrypt.hash(body.password, 12),
     },
   });
-  res.status(201).json({ token: signCustomerToken(user.id), user: publicUser(user) });
+  const { csrfToken } = await createCustomerSession(prisma, req, res, user.id);
+  res.status(201).json({
+    user: publicUser(user),
+    csrfToken,
+    ...(legacyBearerEnabled() ? { token: signCustomerToken(user.id) } : {}),
+  });
 }));
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const body = validate(loginSchema, req.body);
+  await verifyTurnstile(body.turnstileToken, req);
   const user = await prisma.user.findUnique({ where: { email: body.email } });
   if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
     throw new AppError(401, 'Invalid customer email or password.');
   }
-  res.json({ token: signCustomerToken(user.id), user: publicUser(user) });
+  const { csrfToken } = await createCustomerSession(prisma, req, res, user.id);
+  res.json({
+    user: publicUser(user),
+    csrfToken,
+    ...(legacyBearerEnabled() ? { token: signCustomerToken(user.id) } : {}),
+  });
 }));
 
-app.get('/api/me', requireCustomer, (req, res) => {
-  res.json({ user: req.customer });
-});
+app.get('/api/me', requireCustomer, asyncRoute(async (req, res) => {
+  const csrfToken = req.customerSession
+    ? await rotateCustomerCsrf(prisma, req.customerSession.id)
+    : null;
+  res.json({ user: req.customer, csrfToken });
+}));
+
+app.post('/api/auth/logout', requireCustomer, asyncRoute(async (req, res) => {
+  await revokeCustomerSession(prisma, req, res);
+  res.status(204).send();
+}));
 
 // Public catalog and checkout configuration.
 app.get('/api/categories', asyncRoute(async (_req, res) => {
@@ -674,7 +820,7 @@ app.get('/api/collections/:slug', asyncRoute(async (req, res) => {
   ]);
   res.json({
     collection,
-    products: memberships.map((membership) => membership.product),
+    products: memberships.map((membership) => publicProduct(membership.product)),
     pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
   });
 }));
@@ -697,13 +843,15 @@ app.get('/api/content-pages/:slug', asyncRoute(async (req, res) => {
 
 app.get('/api/products', asyncRoute(async (req, res) => {
   const { page, limit, skip } = parsePagination(req.query);
-  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-  const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
-  const collection = typeof req.query.collection === 'string' ? req.query.collection.trim() : '';
-  const brand = typeof req.query.brand === 'string' ? req.query.brand.trim() : '';
-  const compatibility = typeof req.query.compatibility === 'string' ? req.query.compatibility.trim() : '';
-  const featured = req.query.featured === 'true';
-  const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
+  const search = queryText(req.query.search, 'search', 120);
+  const category = queryText(req.query.category, 'category', 140);
+  const collection = queryText(req.query.collection, 'collection', 140);
+  const brand = queryText(req.query.brand, 'brand', 100);
+  const compatibility = queryText(req.query.compatibility, 'compatibility', 100);
+  const featuredValue = queryText(req.query.featured, 'featured', 5);
+  if (featuredValue && !['true', 'false'].includes(featuredValue)) throw new AppError(400, 'featured must be true or false.');
+  const featured = featuredValue === 'true';
+  const sort = queryChoice(req.query.sort, 'sort', ['newest', 'price-asc', 'price-desc', 'name'], 'newest');
   const orderBy = sort === 'price-asc' ? { price: 'asc' }
     : sort === 'price-desc' ? { price: 'desc' }
       : sort === 'name' ? { name: 'asc' }
@@ -743,7 +891,7 @@ app.get('/api/products', asyncRoute(async (req, res) => {
     prisma.product.count({ where }),
   ]);
   res.json({
-    products,
+    products: products.map(publicProduct),
     pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
   });
 }));
@@ -755,7 +903,7 @@ app.get('/api/products/:idOrSlug', asyncRoute(async (req, res) => {
     include: productInclude,
   });
   if (!product) throw new AppError(404, 'Product not found.');
-  res.json({ product });
+  res.json({ product: publicProduct(product) });
 }));
 
 app.post('/api/discounts/validate', requireCustomer, asyncRoute(async (req, res) => {
@@ -842,6 +990,7 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
     const taxTotal = new Prisma.Decimal(0);
     const total = Prisma.Decimal.max(subtotal.plus(shippingTotal).plus(taxTotal).minus(discount.discountTotal), 0);
 
+    const protectedAddress = protectShippingAddress(body.shippingAddress);
     const created = await tx.order.create({
       data: {
         userId: req.customer.id,
@@ -856,7 +1005,7 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
         shippingTotal,
         total,
         customerNote: body.customerNote || null,
-        shippingAddress: body.shippingAddress,
+        ...protectedAddress,
         items: {
           create: prepared.map(({ product, variant, requested, unitPrice }) => ({
             productId: product.id,
@@ -911,7 +1060,7 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
 
   await attemptSideEffect(emailEvents.orderPlaced(order, checkoutUrl));
   res.status(201).json({
-    order,
+    order: publicOrder(order),
     payment: {
       method: publicPaymentMethod(selectedMethod),
       checkoutUrl,
@@ -925,23 +1074,37 @@ app.get('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
     include: orderInclude,
     orderBy: { createdAt: 'desc' },
   });
-  res.json({ orders });
+  res.json({ orders: orders.map(publicOrder) });
 }));
 
-// Admin authentication: admin tokens use a separate secret and cannot authenticate customer endpoints.
+// Admin authentication uses an independent opaque HttpOnly session cookie and a separate session table.
 app.post('/api/admin/auth/login', asyncRoute(async (req, res) => {
   const body = validate(loginSchema, req.body);
+  await verifyTurnstile(body.turnstileToken, req);
   const admin = await prisma.admin.findUnique({ where: { email: body.email } });
   if (!admin || !(await bcrypt.compare(body.password, admin.passwordHash))) {
     throw new AppError(401, 'Invalid admin email or password.');
   }
   const safeAdmin = { id: admin.id, name: admin.name, email: admin.email, role: admin.role, createdAt: admin.createdAt };
-  res.json({ token: signAdminToken(admin.id, admin.role), admin: safeAdmin });
+  const { csrfToken } = await createAdminSession(prisma, req, res, admin.id);
+  res.json({
+    admin: safeAdmin,
+    csrfToken,
+    ...(legacyBearerEnabled() ? { token: signAdminToken(admin.id, admin.role) } : {}),
+  });
 }));
 
-app.get('/api/admin/me', requireAdmin, (req, res) => {
-  res.json({ admin: req.admin });
-});
+app.get('/api/admin/me', requireAdmin, asyncRoute(async (req, res) => {
+  const csrfToken = req.adminSession
+    ? await rotateAdminCsrf(prisma, req.adminSession.id)
+    : null;
+  res.json({ admin: req.admin, csrfToken });
+}));
+
+app.post('/api/admin/auth/logout', requireAdmin, asyncRoute(async (req, res) => {
+  await revokeAdminSession(prisma, req, res);
+  res.status(204).send();
+}));
 
 app.get('/api/admin/admins', requireAdmin, requireSuperadmin, asyncRoute(async (_req, res) => {
   const admins = await prisma.admin.findMany({
@@ -979,23 +1142,25 @@ app.get('/api/admin/media', requireAdmin, asyncRoute(async (_req, res) => {
 
 app.post('/api/admin/media', requireAdmin, asyncRoute(async (req, res) => {
   const body = validate(mediaCreateSchema, req.body);
+  const verified = await verifyUploadedAsset(body.publicId);
+  if (verified.secureUrl !== body.secureUrl) throw new AppError(400, 'Uploaded image metadata did not match Cloudinary.');
   const asset = await prisma.mediaAsset.upsert({
-    where: { publicId: body.publicId },
+    where: { publicId: verified.publicId },
     update: {
-      secureUrl: body.secureUrl,
-      format: body.format || null,
-      width: body.width || null,
-      height: body.height || null,
-      bytes: body.bytes ?? null,
+      secureUrl: verified.secureUrl,
+      format: verified.format,
+      width: verified.width,
+      height: verified.height,
+      bytes: verified.bytes,
       createdByAdminId: req.admin.id,
     },
     create: {
-      publicId: body.publicId,
-      secureUrl: body.secureUrl,
-      format: body.format || null,
-      width: body.width || null,
-      height: body.height || null,
-      bytes: body.bytes ?? null,
+      publicId: verified.publicId,
+      secureUrl: verified.secureUrl,
+      format: verified.format,
+      width: verified.width,
+      height: verified.height,
+      bytes: verified.bytes,
       createdByAdminId: req.admin.id,
     },
   });
@@ -1548,7 +1713,7 @@ app.get('/api/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
     include: orderInclude,
     orderBy: { createdAt: 'desc' },
   });
-  res.json({ orders });
+  res.json({ orders: orders.map(adminOrder) });
 }));
 
 app.get('/api/admin/orders/deleted', requireAdmin, requireSuperadmin, asyncRoute(async (_req, res) => {
@@ -1563,7 +1728,7 @@ app.get('/api/admin/orders/deleted', requireAdmin, requireSuperadmin, asyncRoute
 app.get('/api/admin/orders/:id', requireAdmin, asyncRoute(async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) throw new AppError(404, 'Order not found.');
-  res.json({ order });
+  res.json({ order: adminOrder(order) });
 }));
 
 app.delete('/api/admin/orders/:id', requireAdmin, requireSuperadmin, asyncRoute(async (req, res) => {
@@ -1603,7 +1768,7 @@ app.patch('/api/admin/orders/:id/payment', requireAdmin, asyncRoute(async (req, 
     include: orderInclude,
   });
   if (body.paymentStatus === 'PAID') await attemptSideEffect(emailEvents.paymentConfirmed(order));
-  res.json({ order });
+  res.json({ order: adminOrder(order) });
 }));
 
 const allowedTransitions = {
@@ -1637,7 +1802,7 @@ app.patch('/api/admin/orders/:id/shipment', requireAdmin, asyncRoute(async (req,
     include: orderInclude,
   });
   await attemptSideEffect(emailEvents.shipped(order));
-  res.json({ order });
+  res.json({ order: adminOrder(order) });
 }));
 
 app.patch('/api/admin/orders/:id/status', requireAdmin, asyncRoute(async (req, res) => {
@@ -1666,7 +1831,7 @@ app.patch('/api/admin/orders/:id/status', requireAdmin, asyncRoute(async (req, r
 
   if (status === 'CANCELLED') await attemptSideEffect(emailEvents.cancelled(order));
   if (status === 'DELIVERED') await attemptSideEffect(emailEvents.delivered(order));
-  res.json({ order });
+  res.json({ order: adminOrder(order) });
 }));
 
 app.use((_req, _res, next) => next(new AppError(404, 'Route not found.')));
@@ -1676,7 +1841,7 @@ app.use((error, _req, res, _next) => {
     return res.status(error.status).json({ message: error.message, details: error.details });
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    if (error.code === 'P2002') return res.status(409).json({ message: 'A record with this value already exists.', details: error.meta });
+    if (error.code === 'P2002') return res.status(409).json({ message: 'A record with this value already exists.' });
     if (error.code === 'P2025') return res.status(404).json({ message: 'The requested record was not found.' });
     if (error.code === 'P2003') return res.status(400).json({ message: 'A selected category, collection, product, or related record does not exist.' });
     if (error.code === 'P2034') return res.status(409).json({ message: 'A concurrent inventory update occurred. Please retry.' });
