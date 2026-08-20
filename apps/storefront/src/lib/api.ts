@@ -1,9 +1,9 @@
 import { mockCategories, mockProducts } from '../data/mock';
 import type { Category, Collection, ContentPageRecord, Customer, DiscountPreview, Order, OrderCreationResult, Paginated, PaymentMethod, Product, StorefrontSettings } from '../types/domain';
-import { customerTokenStorage } from './storage';
+import { customerSecurityStorage } from './storage';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
-const DEMO_FALLBACK = import.meta.env.VITE_ENABLE_DEMO_FALLBACK === 'true';
+const DEMO_FALLBACK = (import.meta.env.VITE_ENABLE_DEMO_FALLBACK ?? 'false') === 'true';
 
 export const STORE_API = {
   products: '/api/products',
@@ -19,6 +19,7 @@ export const STORE_API = {
   register: '/api/auth/register',
   me: '/api/me',
   orders: '/api/orders',
+  logout: '/api/auth/logout',
 } as const;
 
 export class ApiError extends Error {
@@ -39,15 +40,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const requestHeaders = new Headers(headers);
   requestHeaders.set('Accept', 'application/json');
   if (body !== undefined) requestHeaders.set('Content-Type', 'application/json');
-  if (auth) {
-    const token = customerTokenStorage.get();
-    if (token) requestHeaders.set('Authorization', `Bearer ${token}`);
+  const method = String(rest.method || 'GET').toUpperCase();
+  if (auth && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrfToken = customerSecurityStorage.getCsrf();
+    if (csrfToken) requestHeaders.set('X-CSRF-Token', csrfToken);
   }
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
+      credentials: 'include',
       headers: requestHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -59,31 +62,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const payload = isJson ? await response.json() : await response.text();
   if (!response.ok) {
     if (response.status === 401 && auth) {
-      customerTokenStorage.clear();
+      customerSecurityStorage.clear();
       window.dispatchEvent(new Event('customer-session-expired'));
     }
-    const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : null;
-    const baseMessage = record && 'message' in record
-      ? String(record.message)
+    const message = payload && typeof payload === 'object' && 'message' in payload
+      ? String((payload as { message: unknown }).message)
       : `Request failed with status ${response.status}.`;
-    const details = record?.details && typeof record.details === 'object'
-      ? record.details as Record<string, unknown>
-      : null;
-    const fieldErrors = details?.fieldErrors && typeof details.fieldErrors === 'object'
-      ? details.fieldErrors as Record<string, unknown>
-      : null;
-    const formErrors = Array.isArray(details?.formErrors)
-      ? details.formErrors.filter((item): item is string => typeof item === 'string')
-      : [];
-    const detailMessages = [
-      ...formErrors,
-      ...Object.entries(fieldErrors ?? {}).flatMap(([field, value]) =>
-        Array.isArray(value)
-          ? value.filter((item): item is string => typeof item === 'string').map((item) => `${field}: ${item}`)
-          : [],
-      ),
-    ];
-    const message = detailMessages.length ? `${baseMessage} ${detailMessages.join(' ')}` : baseMessage;
     throw new ApiError(message, response.status, payload);
   }
   return payload as T;
@@ -186,16 +170,25 @@ export async function validateDiscount(body: { code: string; items: Array<{ prod
   return unwrapEntity<DiscountPreview>(await request<unknown>(STORE_API.validateDiscount, { method: 'POST', body, auth: true }), ['discount']);
 }
 
-export async function loginCustomer(body: { email: string; password: string }): Promise<{ token: string; user?: Customer }> {
+export interface CustomerSessionResponse {
+  user: Customer;
+  csrfToken?: string | null;
+}
+
+export async function loginCustomer(body: { email: string; password: string; turnstileToken?: string }): Promise<CustomerSessionResponse> {
   return request(STORE_API.login, { method: 'POST', body });
 }
 
-export async function registerCustomer(body: { name: string; email: string; password: string }): Promise<{ token: string; user?: Customer }> {
+export async function registerCustomer(body: { name: string; email: string; password: string; turnstileToken?: string }): Promise<CustomerSessionResponse> {
   return request(STORE_API.register, { method: 'POST', body });
 }
 
-export async function getMe(): Promise<Customer> {
-  return unwrapEntity<Customer>(await request<unknown>(STORE_API.me, { auth: true }), ['user']);
+export async function getMe(): Promise<CustomerSessionResponse> {
+  return request(STORE_API.me, { auth: true });
+}
+
+export async function logoutCustomer(): Promise<void> {
+  await request(STORE_API.logout, { method: 'POST', auth: true });
 }
 
 export async function getOrders(): Promise<Order[]> {

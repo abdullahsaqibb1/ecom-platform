@@ -679,45 +679,4 @@ input, select { border-radius: 0; }
 .site-footer a[href^="mailto"], .site-footer a[href^="tel"] { display:block; margin-top:9px; color:inherit; }
 @media (max-width:760px) { .header-logo { height:28px; max-width:140px; }.content-page__section { grid-template-columns:1fr; }.content-page__body { padding:60px 20px; } }
 
-
-.footer-copyright {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0;
-}
-
-.developer-credit {
-  color: inherit;
-  text-decoration: none;
-  opacity: 0.65;
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.developer-credit:hover {
-  opacity: 1;
-  transform: translateY(-1px);
-}
-
-.footer-credit-separator {
-  margin: 0 6px;
-  opacity: 0.4;
-}
-
-@media (max-width: 700px) {
-  .footer-copyright {
-    align-items: flex-start;
-  }
-
-  .footer-credit-separator {
-    display: none;
-  }
-
-  .developer-credit {
-    display: block;
-    width: 100%;
-    margin-top: 6px;
-  }
-}
+.turnstile-wrap { min-height: 65px; display:flex; align-items:center; }

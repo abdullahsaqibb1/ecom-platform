@@ -28,9 +28,7 @@ export interface ProductVariant {
   size?: string;
   color?: string;
   price?: number | string;
-  costPrice?: number | string | null;
   stock: number;
-  lowStockThreshold?: number;
   barcode?: string | null;
   compatibility?: string[];
   specifications?: Record<string, string> | null;
