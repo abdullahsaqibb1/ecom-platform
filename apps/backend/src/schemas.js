@@ -158,6 +158,7 @@ const discountUpdateSchema = z.object(
 ).strict().refine((value) => Object.keys(value).length > 0, 'At least one field is required.').superRefine(validateDiscountDates);
 const discountValidateSchema = z.object({
   code: z.string().trim().min(2).max(50).transform((value) => value.toUpperCase()),
+  customerEmail: email.optional(),
   items: z.array(z.object({ productId: uuid, variantId: uuid.nullable().optional(), quantity: z.coerce.number().int().min(1).max(20) }).strict()).min(1).max(50),
 }).strict();
 
@@ -190,11 +191,76 @@ const orderCreateSchema = z.object({
     quantity: z.coerce.number().int().min(1).max(20),
   }).strict()).min(1).max(50),
   shippingAddress: shippingAddressSchema,
+  customerEmail: email.optional(),
   paymentMethodCode: z.string().trim().min(2).max(50).default('cod'),
   discountCode: z.string().trim().max(50).transform((value) => value.toUpperCase()).nullable().optional(),
   customerNote: nullableText(1000),
 }).strict();
 
+const manualOrderCreateSchema = z.object({
+  customerName: z.string().trim().min(2).max(120),
+  customerEmail: email.nullable().optional(),
+  customerPhone: z.string().trim().max(30).nullable().optional(),
+  source: z.enum(['MANUAL', 'PHONE', 'WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'WALK_IN', 'MARKETPLACE', 'OTHER']).default('MANUAL'),
+  sourceNote: nullableText(500),
+  paymentMethodCode: z.string().trim().min(2).max(50).default('cash'),
+  paymentStatus: z.enum(['UNPAID', 'PAID']).default('PAID'),
+  markDelivered: z.boolean().default(false),
+  shippingTotal: z.coerce.number().nonnegative().max(10000000).default(0),
+  discountTotal: z.coerce.number().nonnegative().max(10000000).default(0),
+  taxTotal: z.coerce.number().nonnegative().max(10000000).default(0),
+  customerNote: nullableText(1000),
+  sendConfirmation: z.boolean().default(false),
+  shippingAddress: z.object({
+    fullName: z.string().trim().min(2).max(120),
+    phone: z.string().trim().max(30).default(''),
+    address1: z.string().trim().max(250).default(''),
+    city: z.string().trim().max(100).default(''),
+    province: z.string().trim().max(100).default(''),
+    postalCode: z.string().trim().max(30).default(''),
+  }).strict(),
+  items: z.array(z.object({
+    productId: uuid,
+    variantId: uuid.nullable().optional(),
+    quantity: z.coerce.number().int().min(1).max(100),
+    unitPrice: z.coerce.number().nonnegative().max(100000000).optional(),
+  }).strict()).min(1).max(100),
+}).strict().superRefine((value, ctx) => {
+  if (value.markDelivered && value.paymentStatus !== 'PAID') {
+    ctx.addIssue({ code: 'custom', path: ['markDelivered'], message: 'A completed external sale must be marked paid.' });
+  }
+});
+
+const reviewSubmitSchema = z.object({
+  reviewerName: z.string().trim().min(2).max(120),
+  reviewerEmail: email,
+  rating: z.coerce.number().int().min(1).max(5),
+  title: nullableText(160),
+  body: z.string().trim().min(10).max(5000),
+}).strict();
+
+const adminReviewCreateSchema = z.object({
+  productId: uuid,
+  reviewerName: z.string().trim().min(2).max(120),
+  reviewerEmail: email.nullable().optional(),
+  rating: z.coerce.number().int().min(1).max(5),
+  title: nullableText(160),
+  body: z.string().trim().min(10).max(5000),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).default('APPROVED'),
+  isFeatured: z.boolean().default(false),
+  adminNote: nullableText(1000),
+}).strict();
+
+const adminReviewUpdateSchema = z.object({
+  reviewerName: z.string().trim().min(2).max(120).optional(),
+  reviewerEmail: email.nullable().optional(),
+  rating: z.coerce.number().int().min(1).max(5).optional(),
+  title: nullableText(160),
+  body: z.string().trim().min(10).max(5000).optional(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+  isFeatured: z.boolean().optional(),
+  adminNote: nullableText(1000),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one field is required.');
 
 const manualPaymentSchema = z.object({
   paymentStatus: z.enum(['UNPAID', 'PAID', 'REFUNDED']),
@@ -372,6 +438,10 @@ module.exports = {
   paymentMethodCreateSchema,
   paymentMethodUpdateSchema,
   orderCreateSchema,
+  manualOrderCreateSchema,
+  reviewSubmitSchema,
+  adminReviewCreateSchema,
+  adminReviewUpdateSchema,
   manualPaymentSchema,
   orderStatusSchema,
   shipmentSchema,

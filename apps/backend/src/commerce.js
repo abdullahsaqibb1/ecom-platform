@@ -80,7 +80,7 @@ function itemEligible(discount, product) {
   return false;
 }
 
-async function evaluateDiscount(tx, { code, prepared, subtotal, shippingTotal, userId, incrementUsage = false }) {
+async function evaluateDiscount(tx, { code, prepared, subtotal, shippingTotal, userId, guestEmail, incrementUsage = false }) {
   if (!code) return { discount: null, discountTotal: money(0), discountCode: null };
   const normalized = code.trim().toUpperCase();
   const discount = await tx.discount.findUnique({ where: { code: normalized } });
@@ -90,9 +90,13 @@ async function evaluateDiscount(tx, { code, prepared, subtotal, shippingTotal, u
   if (discount.minimumOrderAmount != null && money(subtotal).lessThan(discount.minimumOrderAmount)) {
     throw new AppError(400, `This code requires a minimum order of Rs ${Number(discount.minimumOrderAmount).toLocaleString()}.`);
   }
-  if (discount.perCustomerLimit != null && userId) {
+  if (discount.perCustomerLimit != null && (userId || guestEmail)) {
     const uses = await tx.order.count({
-      where: { userId, discountCode: normalized, status: { not: 'CANCELLED' } },
+      where: {
+        ...(userId ? { userId } : { customerEmail: guestEmail.trim().toLowerCase() }),
+        discountCode: normalized,
+        status: { not: 'CANCELLED' },
+      },
     });
     if (uses >= discount.perCustomerLimit) throw new AppError(400, 'You have already used this discount the maximum number of times.');
   }

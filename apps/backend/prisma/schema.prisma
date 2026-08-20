@@ -28,6 +28,30 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum OrderSource {
+  WEBSITE
+  MANUAL
+  PHONE
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  WALK_IN
+  MARKETPLACE
+  OTHER
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReviewSource {
+  WEBSITE
+  MANUAL
+  IMPORTED
+}
+
 enum NotificationType {
   ORDER_PLACED
   PAYMENT_CONFIRMED
@@ -77,6 +101,7 @@ model User {
   email        String   @unique
   passwordHash String
   orders       Order[]
+  reviews      Review[]
   sessions     CustomerSession[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -93,6 +118,9 @@ model Admin {
   storefrontUpdates StorefrontSettings[]
   contentPageUpdates ContentPage[]
   orderDeletions     OrderDeletionLog[]
+  manualOrders       Order[]             @relation("ManualOrderCreator")
+  reviewCreates      Review[]            @relation("ReviewCreatedByAdmin")
+  reviewUpdates      Review[]            @relation("ReviewUpdatedByAdmin")
   sessions           AdminSession[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -216,6 +244,7 @@ model Product {
   variants           ProductVariant[]
   orderItems         OrderItem[]
   inventoryMovements InventoryMovement[]
+  reviews            Review[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -312,38 +341,48 @@ model PaymentMethod {
 }
 
 model Order {
-  id                String            @id @default(uuid()) @db.Uuid
-  userId            String            @db.Uuid
-  user              User              @relation(fields: [userId], references: [id], onDelete: Restrict)
-  status            OrderStatus       @default(PENDING)
-  paymentStatus     PaymentStatus     @default(UNPAID)
-  paymentProvider   String?
-  paymentMethodCode String?
-  paymentReference  String?
-  paymentTracker    String?
-  discountCode      String?
-  discountTotal     Decimal           @default(0) @db.Decimal(12, 2)
-  taxTotal          Decimal           @default(0) @db.Decimal(12, 2)
-  subtotal          Decimal           @default(0) @db.Decimal(12, 2)
-  shippingTotal     Decimal           @default(0) @db.Decimal(12, 2)
-  total             Decimal           @db.Decimal(12, 2)
-  customerNote      String?
-  shippingAddress   Json
+  id                       String            @id @default(uuid()) @db.Uuid
+  userId                   String?           @db.Uuid
+  user                     User?             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  customerEmail            String?
+  customerPhone            String?
+  source                   OrderSource       @default(WEBSITE)
+  sourceNote               String?
+  createdByAdminId         String?           @db.Uuid
+  createdByAdmin           Admin?            @relation("ManualOrderCreator", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  status                   OrderStatus       @default(PENDING)
+  paymentStatus            PaymentStatus     @default(UNPAID)
+  paymentProvider          String?
+  paymentMethodCode        String?
+  paymentReference         String?
+  paymentTracker           String?
+  discountCode             String?
+  discountTotal            Decimal           @default(0) @db.Decimal(12, 2)
+  taxTotal                 Decimal           @default(0) @db.Decimal(12, 2)
+  subtotal                 Decimal           @default(0) @db.Decimal(12, 2)
+  shippingTotal            Decimal           @default(0) @db.Decimal(12, 2)
+  total                    Decimal           @db.Decimal(12, 2)
+  customerNote             String?
+  shippingAddress          Json
   shippingAddressEncrypted String?
-  carrier           String?
-  trackingNumber    String?
-  trackingUrl       String?
-  estimatedDelivery DateTime?
-  paidAt            DateTime?
-  shippedAt         DateTime?
-  deliveredAt       DateTime?
-  items             OrderItem[]
-  paymentEvents     PaymentEvent[]
-  notifications     NotificationLog[]
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  carrier                  String?
+  trackingNumber           String?
+  trackingUrl              String?
+  estimatedDelivery        DateTime?
+  paidAt                   DateTime?
+  shippedAt                DateTime?
+  deliveredAt              DateTime?
+  items                    OrderItem[]
+  paymentEvents            PaymentEvent[]
+  notifications            NotificationLog[]
+  reviews                  Review[]
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
 
   @@index([userId, createdAt])
+  @@index([customerEmail, createdAt])
+  @@index([source, createdAt])
+  @@index([createdByAdminId, createdAt])
   @@index([status, createdAt])
   @@index([paymentStatus, createdAt])
   @@index([trackingNumber])
@@ -367,6 +406,38 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@index([variantId])
+}
+
+model Review {
+  id               String       @id @default(uuid()) @db.Uuid
+  productId        String       @db.Uuid
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId           String?      @db.Uuid
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orderId          String?      @db.Uuid
+  order            Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  reviewerName     String
+  reviewerEmail    String?
+  rating           Int
+  title            String?
+  body             String
+  status           ReviewStatus @default(PENDING)
+  source           ReviewSource @default(WEBSITE)
+  isFeatured       Boolean      @default(false)
+  isVerifiedPurchase Boolean    @default(false)
+  adminNote        String?
+  editedByAdminAt  DateTime?
+  createdByAdminId String?      @db.Uuid
+  createdByAdmin   Admin?       @relation("ReviewCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  updatedByAdminId String?      @db.Uuid
+  updatedByAdmin   Admin?       @relation("ReviewUpdatedByAdmin", fields: [updatedByAdminId], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([productId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewerEmail])
+  @@index([orderId])
 }
 
 model PaymentEvent {

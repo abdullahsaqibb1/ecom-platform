@@ -1,0 +1,23 @@
+COSMIC TECH — EXTERNAL SALES / CSV / REVIEWS / GUEST CHECKOUT VALIDATION
+Date: 2026-08-21
+
+PASSED
+- Existing package structure checker passed.
+- Existing Safepay launch tests passed.
+- Existing repository security audit passed with no high-confidence secrets, unsafe Prisma raw-query helpers, or dangerouslySetInnerHTML.
+- Backend JavaScript syntax passed with node --check.
+- 59 admin/storefront TypeScript and TSX source files parse successfully with TypeScript 5.8.3.
+- All relative TS/TSX imports resolve to local source files.
+- Admin and storefront CSS braces are balanced.
+- Additive migration exists after the typography migration: 202608210002_sales_reviews_guest_checkout.
+- Guest checkout retains server-side price, stock, shipping, discount, payment-method, and total calculation.
+- External sales use the same serializable inventory-allocation path as website orders and create SALE inventory movements.
+- CSV export is admin-authenticated and omits the encrypted shipping blob and provider checkout tracker.
+- Public review responses omit reviewer email and admin notes.
+- Website review submissions default to PENDING moderation.
+- Store-entered reviews are source-labelled and customer-submitted content edits are timestamped for storefront disclosure.
+
+PRODUCTION VALIDATION STILL REQUIRED
+- A complete dependency install, tsc -b, Vite production build, and Prisma CLI validation could not be completed in this workspace because external npm installation did not complete. Vercel should run the real builds from the existing projects.
+- Confirm prisma migrate deploy applies 202608210002_sales_reviews_guest_checkout on the live Neon database before testing admin/storefront features.
+- Test one external sale, CSV download, review submission/moderation, guest checkout, and signed-in checkout after deployment.

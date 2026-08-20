@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, ExternalLink, Eye, History, PackageCheck, Search, Trash2, Truck } from 'lucide-react';
+import { CreditCard, Download, ExternalLink, Eye, History, PackageCheck, Plus, Search, Trash2, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
@@ -7,12 +7,14 @@ import { EmptyState } from '../../components/EmptyState';
 import { LoadingState } from '../../components/LoadingState';
 import { Modal } from '../../components/Modal';
 import { PageHeader } from '../../components/PageHeader';
-import { ADMIN_API, apiRequest, unwrapEntity, unwrapList } from '../../lib/api';
+import { ADMIN_API, apiRequest, downloadAdminFile, unwrapEntity, unwrapList } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/format';
-import type { Order, OrderDeletionLog, OrderStatus, PaymentStatus } from '../../types/domain';
+import type { Order, OrderDeletionLog, OrderSource, OrderStatus, PaymentStatus } from '../../types/domain';
 import { useAuth } from '../auth/AuthContext';
+import { ManualOrderModal } from './ManualOrderModal';
 
 const statuses: OrderStatus[] = ['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+const sources: OrderSource[] = ['WEBSITE', 'MANUAL', 'PHONE', 'WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'WALK_IN', 'MARKETPLACE', 'OTHER'];
 const allowedNext: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['CANCELLED'],
   PAID: [],
@@ -55,11 +57,15 @@ export function OrdersPage() {
   const queryClient = useQueryClient();
   const { admin } = useAuth();
   const [status, setStatus] = useState<'ALL' | OrderStatus>('ALL');
+  const [source, setSource] = useState<'ALL' | OrderSource>('ALL');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Order | null>(null);
   const [shipment, setShipment] = useState<ShipmentForm>(emptyShipment);
   const [deleting, setDeleting] = useState<Order | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+  const [manualOpen, setManualOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     setShipment(selected ? {
@@ -71,11 +77,13 @@ export function OrdersPage() {
   }, [selected]);
 
   const query = useQuery({
-    queryKey: ['orders', status],
-    queryFn: async () => unwrapList<Order>(
-      await apiRequest(`${ADMIN_API.orders}${status === 'ALL' ? '' : `?status=${status}`}`),
-      ['orders'],
-    ),
+    queryKey: ['orders', status, source],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (status !== 'ALL') params.set('status', status);
+      if (source !== 'ALL') params.set('source', source);
+      return unwrapList<Order>(await apiRequest(`${ADMIN_API.orders}${params.size ? `?${params.toString()}` : ''}`), ['orders']);
+    },
   });
 
   const deletedQuery = useQuery({
@@ -143,7 +151,7 @@ export function OrdersPage() {
 
   if (query.isLoading) return <LoadingState label="Loading orders" />;
   const orders = (query.data ?? []).filter((order) => {
-    const customer = order.user?.email ?? order.customer?.email ?? '';
+    const customer = [order.user?.name, order.user?.email, order.customer?.name, order.customer?.email, order.customerEmail, order.customerPhone, typeof order.shippingAddress === 'object' ? String(order.shippingAddress?.fullName ?? '') : ''].filter(Boolean).join(' ');
     const needle = search.toLowerCase();
     return order.id.toLowerCase().includes(needle)
       || customer.toLowerCase().includes(needle)
@@ -151,15 +159,16 @@ export function OrdersPage() {
   });
 
   return <div>
-    <PageHeader eyebrow="Fulfilment" title="Orders" description="Manage payment confirmation, shipment tracking and order status from one fulfilment workspace." />
+    <PageHeader eyebrow="Fulfilment" title="Orders" description="Manage website and external sales, inventory allocation, payment confirmation, shipment tracking and exports." actions={<div className="page-actions"><Button variant="secondary" isLoading={exporting} onClick={async () => { setExportError(''); setExporting(true); try { const params = new URLSearchParams(); if (status !== 'ALL') params.set('status', status); if (source !== 'ALL') params.set('source', source); await downloadAdminFile(`${ADMIN_API.orderExport}${params.size ? `?${params.toString()}` : ''}`, `cosmic-tech-orders-${new Date().toISOString().slice(0, 10)}.csv`); } catch (err) { setExportError(err instanceof Error ? err.message : 'Unable to export orders.'); } finally { setExporting(false); } }}><Download size={16} /> Export CSV</Button><Button onClick={() => setManualOpen(true)}><Plus size={16} /> Add external sale</Button></div>} />
+    {exportError ? <div className="form-alert">{exportError}</div> : null}
     <section className="panel">
       <div className="toolbar toolbar--wrap">
         <label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order, customer, or tracking" /></label>
-        <div className="filter-tabs"><button className={status === 'ALL' ? 'active' : ''} onClick={() => setStatus('ALL')}>All</button>{statuses.map((item) => <button key={item} className={status === item ? 'active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div>
+        <div className="filter-tabs"><button className={status === 'ALL' ? 'active' : ''} onClick={() => setStatus('ALL')}>All</button>{statuses.map((item) => <button key={item} className={status === item ? 'active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><select value={source} onChange={(event) => setSource(event.target.value as 'ALL' | OrderSource)}><option value="ALL">All sources</option>{sources.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select>
       </div>
       {orders.length ? <div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Placed</th><th /></tr></thead><tbody>{orders.map((order) => <tr key={order.id}>
-        <td><strong>#{order.id.slice(-8).toUpperCase()}</strong>{order.trackingNumber ? <span className="table-subline">{order.trackingNumber}</span> : null}</td>
-        <td><div className="stacked-cell"><strong>{order.user?.name ?? order.customer?.name ?? 'Customer'}</strong><span>{order.user?.email ?? order.customer?.email ?? '—'}</span></div></td>
+        <td><strong>#{order.id.slice(-8).toUpperCase()}</strong><span className="table-subline">{(order.source ?? 'WEBSITE').replaceAll('_', ' ')}</span>{order.trackingNumber ? <span className="table-subline">{order.trackingNumber}</span> : null}</td>
+        <td><div className="stacked-cell"><strong>{order.user?.name ?? order.customer?.name ?? (typeof order.shippingAddress === 'object' ? String(order.shippingAddress?.fullName ?? 'Customer') : 'Customer')}</strong><span>{order.user?.email ?? order.customerEmail ?? order.customer?.email ?? order.customerPhone ?? '—'}</span></div></td>
         <td>{order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0}</td>
         <td><strong>{formatCurrency(order.totalAmount ?? order.total)}</strong></td>
         <td><Badge tone={paymentTone(order.paymentStatus)}>{order.paymentStatus ?? 'UNPAID'}</Badge><span className="table-subline">{order.paymentMethodCode ?? order.paymentProvider ?? '—'}</span></td>
@@ -172,15 +181,17 @@ export function OrdersPage() {
     <Modal isOpen={Boolean(selected)} onClose={() => setSelected(null)} title={`Order #${selected?.id.slice(-8).toUpperCase() ?? ''}`} description={selected ? `Placed ${formatDate(selected.createdAt)}` : ''} size="lg">
       {selected ? <div className="order-detail">
         <div className="order-detail__summary">
-          <div><span>Customer</span><strong>{selected.user?.name ?? selected.customer?.name ?? 'Customer'}</strong><small>{selected.user?.email ?? selected.customer?.email ?? '—'}</small></div>
+          <div><span>Customer</span><strong>{selected.user?.name ?? selected.customer?.name ?? (typeof selected.shippingAddress === 'object' ? String(selected.shippingAddress?.fullName ?? 'Customer') : 'Customer')}</strong><small>{selected.user?.email ?? selected.customerEmail ?? selected.customer?.email ?? selected.customerPhone ?? '—'}</small></div>
           <div><span>Order total</span><strong>{formatCurrency(selected.totalAmount ?? selected.total)}</strong><div className="badge-pair"><Badge tone={paymentTone(selected.paymentStatus)}>{selected.paymentStatus ?? 'UNPAID'}</Badge><Badge tone={tone(selected.status)}>{selected.status}</Badge></div></div>
         </div>
 
         <div className="payment-detail-grid">
-          <div><span>Payment method</span><strong>{selected.paymentMethodCode || selected.paymentProvider || '—'}</strong></div>
+          <div><span>Source</span><strong>{(selected.source ?? 'WEBSITE').replaceAll('_', ' ')}</strong></div><div><span>Payment method</span><strong>{selected.paymentMethodCode || selected.paymentProvider || '—'}</strong></div>
           <div><span>Payment reference</span><strong>{selected.paymentReference || '—'}</strong></div>
           <div><span>Paid</span><strong>{selected.paidAt ? formatDate(selected.paidAt) : 'Not confirmed'}</strong></div>
           <div><span>Delivery</span><strong>{formatCurrency(selected.shippingTotal ?? 0)}</strong></div><div><span>Discount</span><strong>{selected.discountCode ? `${selected.discountCode} · -${formatCurrency(selected.discountTotal ?? 0)}` : '—'}</strong></div>
+          {selected.sourceNote ? <div><span>Source reference</span><strong>{selected.sourceNote}</strong></div> : null}
+          {selected.createdByAdmin ? <div><span>Recorded by</span><strong>{selected.createdByAdmin.name ?? selected.createdByAdmin.email}</strong></div> : null}
         </div>
 
         {selected.paymentProvider !== 'safepay' ? <div className="manual-payment-panel"><CreditCard size={19} /><div><strong>Manual payment control</strong><span>{selected.paymentMethodCode === 'cod' ? 'Cash-on-delivery orders can ship unpaid and are marked paid when delivered.' : 'Confirm an offline payment only after checking the bank or payment record.'}</span></div><div>{selected.paymentStatus !== 'PAID' ? <Button size="sm" isLoading={paymentMutation.isPending} onClick={() => paymentMutation.mutate({ id: selected.id, paymentStatus: 'PAID' })}>Mark payment received</Button> : <Badge tone="success">Payment confirmed</Badge>}</div></div> : null}
@@ -209,7 +220,9 @@ export function OrdersPage() {
       </div> : null}
     </Modal>
 
-    {admin?.role === 'SUPERADMIN' && (deletedQuery.data?.length ?? 0) > 0 ? <section className="panel deleted-orders-panel"><header className="panel__header"><div><h2>Deletion history</h2><p>Permanent deletions remain auditable without continuing to block product records.</p></div><History size={18} /></header><div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Reason</th><th>Deleted by</th><th>Date</th></tr></thead><tbody>{deletedQuery.data?.slice(0, 20).map((entry) => <tr key={entry.id}><td><strong>#{entry.orderId.slice(-8).toUpperCase()}</strong></td><td>{entry.snapshot.user?.email ?? entry.snapshot.customer?.email ?? '—'}</td><td>{formatCurrency(entry.snapshot.total ?? entry.snapshot.totalAmount ?? 0)}</td><td>{entry.reason}</td><td>{entry.deletedBy?.name ?? entry.deletedBy?.email ?? 'Administrator'}</td><td>{formatDate(entry.deletedAt)}</td></tr>)}</tbody></table></div></section> : null}
+    {admin?.role === 'SUPERADMIN' && (deletedQuery.data?.length ?? 0) > 0 ? <section className="panel deleted-orders-panel"><header className="panel__header"><div><h2>Deletion history</h2><p>Permanent deletions remain auditable without continuing to block product records.</p></div><History size={18} /></header><div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Reason</th><th>Deleted by</th><th>Date</th></tr></thead><tbody>{deletedQuery.data?.slice(0, 20).map((entry) => <tr key={entry.id}><td><strong>#{entry.orderId.slice(-8).toUpperCase()}</strong></td><td>{entry.snapshot.user?.email ?? entry.snapshot.customerEmail ?? entry.snapshot.customer?.email ?? '—'}</td><td>{formatCurrency(entry.snapshot.total ?? entry.snapshot.totalAmount ?? 0)}</td><td>{entry.reason}</td><td>{entry.deletedBy?.name ?? entry.deletedBy?.email ?? 'Administrator'}</td><td>{formatDate(entry.deletedAt)}</td></tr>)}</tbody></table></div></section> : null}
+
+    <ManualOrderModal isOpen={manualOpen} onClose={() => setManualOpen(false)} onCreated={async (order) => { setManualOpen(false); await Promise.all([queryClient.invalidateQueries({ queryKey: ['orders'] }), queryClient.invalidateQueries({ queryKey: ['dashboard'] }), queryClient.invalidateQueries({ queryKey: ['products'] }), queryClient.invalidateQueries({ queryKey: ['inventory'] })]); setSelected(order); }} />
 
     <Modal isOpen={Boolean(deleting)} onClose={() => { if (!deleteMutation.isPending) { setDeleting(null); setDeleteReason(''); } }} title="Delete order permanently" description={deleting ? `Order #${deleting.id.slice(-8).toUpperCase()} will be removed from active records.` : ''}>
       <div className="delete-order-dialog"><div className="delete-warning"><Trash2 size={20} /><div><strong>This cannot be undone from the dashboard.</strong><span>An audit snapshot is retained. This action does not issue a payment-provider refund.</span></div></div><label className="field"><span>Deletion reason</span><textarea rows={4} value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="Duplicate test order, incorrect imported record…" /></label>{deleteMutation.error ? <div className="form-alert">{deleteMutation.error.message}</div> : null}<div className="modal-actions"><Button variant="secondary" onClick={() => setDeleting(null)}>Cancel</Button><Button variant="danger" isLoading={deleteMutation.isPending} disabled={deleteReason.trim().length < 3} onClick={() => deleting && deleteMutation.mutate({ id: deleting.id, reason: deleteReason.trim() })}>Delete permanently</Button></div></div>

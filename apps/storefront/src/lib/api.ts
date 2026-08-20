@@ -1,5 +1,5 @@
 import { mockCategories, mockProducts } from '../data/mock';
-import type { Category, Collection, ContentPageRecord, Customer, DiscountPreview, Order, OrderCreationResult, Paginated, PaymentMethod, Product, StorefrontSettings } from '../types/domain';
+import type { Category, Collection, ContentPageRecord, Customer, DiscountPreview, Order, OrderCreationResult, Paginated, PaymentMethod, Product, ProductReview, ProductReviewSummary, StorefrontSettings } from '../types/domain';
 import { customerSecurityStorage } from './storage';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -8,6 +8,7 @@ const DEMO_FALLBACK = (import.meta.env.VITE_ENABLE_DEMO_FALLBACK ?? 'false') ===
 export const STORE_API = {
   products: '/api/products',
   product: (idOrSlug: string) => `/api/products/${idOrSlug}`,
+  productReviews: (idOrSlug: string) => `/api/products/${idOrSlug}/reviews`,
   categories: '/api/categories',
   collections: '/api/collections',
   collection: (slug: string) => `/api/collections/${slug}`,
@@ -125,6 +126,21 @@ export async function getProduct(idOrSlug: string): Promise<Product> {
   }
 }
 
+
+export async function getProductReviews(idOrSlug: string): Promise<{ reviews: ProductReview[]; summary: ProductReviewSummary }> {
+  const payload = await request<unknown>(STORE_API.productReviews(idOrSlug));
+  if (!payload || typeof payload !== 'object') throw new ApiError('The reviews API returned an invalid response.', 502);
+  const record = payload as Record<string, unknown>;
+  return {
+    reviews: unwrapList<ProductReview>(payload, ['reviews']),
+    summary: (record.summary ?? { count: 0, average: 0 }) as ProductReviewSummary,
+  };
+}
+
+export async function submitProductReview(idOrSlug: string, body: { reviewerName: string; reviewerEmail: string; rating: number; title?: string | null; body: string }): Promise<{ review: ProductReview; message: string }> {
+  return request(STORE_API.productReviews(idOrSlug), { method: 'POST', body, auth: true });
+}
+
 export async function getCategories(): Promise<Category[]> {
   try {
     return unwrapList<Category>(await request<unknown>(STORE_API.categories), ['categories']);
@@ -166,7 +182,7 @@ export async function getPaymentMethods(): Promise<PaymentMethod[]> {
   return unwrapList<PaymentMethod>(await request<unknown>(STORE_API.paymentMethods), ['paymentMethods']);
 }
 
-export async function validateDiscount(body: { code: string; items: Array<{ productId: string; variantId?: string | null; quantity: number }> }): Promise<DiscountPreview> {
+export async function validateDiscount(body: { code: string; customerEmail?: string; items: Array<{ productId: string; variantId?: string | null; quantity: number }> }): Promise<DiscountPreview> {
   return unwrapEntity<DiscountPreview>(await request<unknown>(STORE_API.validateDiscount, { method: 'POST', body, auth: true }), ['discount']);
 }
 

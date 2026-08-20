@@ -50,6 +50,9 @@ function emailShell({ preview, heading, body, order }) {
   const storefrontUrl = normalizeHttpUrl(process.env.STOREFRONT_URL, 'https://cosmictech.digital');
   const accountUrl = escapeHtml(`${storefrontUrl}/account`);
   const supportEmail = escapeHtml(process.env.SUPPORT_EMAIL || 'support@cosmictech.digital');
+  const orderLink = order.userId
+    ? `<a href="${accountUrl}" style="display:inline-block;margin-top:8px;padding:12px 20px;background:#111;color:#fff;text-decoration:none">View your order</a>`
+    : `<a href="${escapeHtml(storefrontUrl)}" style="display:inline-block;margin-top:8px;padding:12px 20px;background:#111;color:#fff;text-decoration:none">Continue shopping</a>`;
   return `<!doctype html><html><body style="margin:0;background:#f5f2ed;font-family:Arial,sans-serif;color:#191919">
     <div style="display:none;max-height:0;overflow:hidden">${escapeHtml(preview)}</div>
     <div style="max-width:640px;margin:0 auto;padding:32px 16px">
@@ -63,7 +66,7 @@ function emailShell({ preview, heading, body, order }) {
         </table>
         <div style="margin-top:20px;text-align:right"><strong>Order total: ${money(order.total)}</strong></div>
         <p style="color:#6b665f;font-size:13px;margin-top:32px">Order #${orderNumber(order)} · Questions? Email ${supportEmail}</p>
-        <a href="${accountUrl}" style="display:inline-block;margin-top:8px;padding:12px 20px;background:#111;color:#fff;text-decoration:none">View your order</a>
+        ${orderLink}
       </div>
     </div>
   </body></html>`;
@@ -90,7 +93,7 @@ async function sendWithResend({ to, subject, html }) {
 }
 
 async function claimNotification(order, type) {
-  const recipient = order.user?.email;
+  const recipient = order.customerEmail || order.user?.email;
   if (!recipient) return null;
   try {
     return await prisma.notificationLog.create({

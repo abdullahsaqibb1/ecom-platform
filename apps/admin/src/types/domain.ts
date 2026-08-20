@@ -161,9 +161,12 @@ export interface PaymentMethod {
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PROCESSING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type OrderSource = 'WEBSITE' | 'MANUAL' | 'PHONE' | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'WALK_IN' | 'MARKETPLACE' | 'OTHER';
 
 export interface OrderItem {
   id: string;
+  productId?: string;
+  variantId?: string | null;
   quantity: number;
   unitPrice?: number | string;
   unitCost?: number | string | null;
@@ -171,6 +174,7 @@ export interface OrderItem {
   product?: Pick<Product, 'id' | 'name' | 'images'> | null;
   productName?: string;
   variantLabel?: string | null;
+  variant?: Pick<ProductVariant, 'id' | 'sku' | 'size' | 'color'> | null;
 }
 
 export interface CustomerSummary {
@@ -182,6 +186,11 @@ export interface CustomerSummary {
 export interface Order {
   id: string;
   status: OrderStatus;
+  source?: OrderSource;
+  sourceNote?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  createdByAdmin?: Pick<Admin, 'id' | 'name' | 'email'> | null;
   paymentStatus?: PaymentStatus;
   paymentProvider?: string | null;
   paymentMethodCode?: string | null;
@@ -206,6 +215,31 @@ export interface Order {
   paidAt?: string | null;
   shippedAt?: string | null;
   deliveredAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ReviewSource = 'WEBSITE' | 'MANUAL' | 'IMPORTED';
+export interface Review {
+  id: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'name' | 'images'> | null;
+  reviewerName: string;
+  reviewerEmail?: string | null;
+  rating: number;
+  title?: string | null;
+  body: string;
+  status: ReviewStatus;
+  source: ReviewSource;
+  isFeatured: boolean;
+  isVerifiedPurchase: boolean;
+  adminNote?: string | null;
+  editedByAdminAt?: string | null;
+  user?: CustomerSummary | null;
+  order?: { id: string; source?: OrderSource; createdAt?: string } | null;
+  createdByAdmin?: Pick<Admin, 'id' | 'name' | 'email'> | null;
+  updatedByAdmin?: Pick<Admin, 'id' | 'name' | 'email'> | null;
   createdAt: string;
   updatedAt?: string;
 }

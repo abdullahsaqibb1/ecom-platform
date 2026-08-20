@@ -91,6 +91,34 @@ async function requireCustomer(req, _res, next) {
   }
 }
 
+async function optionalCustomer(req, _res, next) {
+  try {
+    const session = await readCustomerSession(prisma, req);
+    if (session) {
+      enforceCsrf(req, session);
+      req.customer = session.user;
+      req.customerSession = session;
+      req.authKind = 'cookie';
+      return next();
+    }
+    if (legacyBearerEnabled()) {
+      try {
+        const legacy = await authenticateLegacyCustomer(req);
+        if (legacy) {
+          req.customer = legacy.user;
+          req.authKind = legacy.authKind;
+        }
+      } catch {
+        // Guest checkout remains available even when an obsolete bearer token is present.
+      }
+    }
+    return next();
+  } catch (error) {
+    if (error instanceof AppError) return next(error);
+    return next();
+  }
+}
+
 async function requireAdmin(req, _res, next) {
   try {
     const session = await readAdminSession(prisma, req);
@@ -126,6 +154,7 @@ module.exports = {
   signCustomerToken,
   signAdminToken,
   requireCustomer,
+  optionalCustomer,
   requireAdmin,
   requireSuperadmin,
   legacyBearerEnabled,

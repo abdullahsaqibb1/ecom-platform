@@ -13,6 +13,7 @@ const {
   signCustomerToken,
   signAdminToken,
   requireCustomer,
+  optionalCustomer,
   requireAdmin,
   requireSuperadmin,
   legacyBearerEnabled,
@@ -35,6 +36,10 @@ const {
   paymentMethodCreateSchema,
   paymentMethodUpdateSchema,
   orderCreateSchema,
+  manualOrderCreateSchema,
+  reviewSubmitSchema,
+  adminReviewCreateSchema,
+  adminReviewUpdateSchema,
   manualPaymentSchema,
   orderStatusSchema,
   shipmentSchema,
@@ -164,6 +169,13 @@ const orderLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Too many order attempts. Please try again later.' },
 });
+const reviewLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many review submissions. Please try again later.' },
+});
 const adminMutationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 180,
@@ -176,6 +188,7 @@ app.use('/api/auth/login', loginLimiter);
 app.use('/api/admin/auth/login', loginLimiter);
 app.use('/api/auth/register', registrationLimiter);
 app.use('/api/orders', (req, res, next) => req.method === 'POST' ? orderLimiter(req, res, next) : next());
+app.use('/api/products', (req, res, next) => req.method === 'POST' && req.path.endsWith('/reviews') ? reviewLimiter(req, res, next) : next());
 app.use('/api/admin', (req, res, next) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) ? adminMutationLimiter(req, res, next) : next());
 
 const productInclude = {
@@ -188,6 +201,7 @@ const productInclude = {
 };
 const orderInclude = {
   user: { select: { id: true, name: true, email: true } },
+  createdByAdmin: { select: { id: true, name: true, email: true } },
   items: {
     include: {
       product: { select: { id: true, name: true, images: true } },
@@ -232,6 +246,9 @@ function publicOrder(order) {
     paymentEvents: _paymentEvents,
     notifications: _notifications,
     user: _user,
+    createdByAdmin: _createdByAdmin,
+    createdByAdminId: _createdByAdminId,
+    sourceNote: _sourceNote,
     ...safe
   } = revealed;
   if (Array.isArray(safe.items)) {
@@ -437,6 +454,103 @@ async function prepareRequestedItems(tx, items, { checkStock = true } = {}) {
     prepared.push({ product, variant, requested, unitPrice });
   }
   return { prepared, subtotal };
+}
+
+async function allocatePreparedInventory(tx, prepared, { adminId = null, reason = 'Inventory allocated to order' } = {}) {
+  const movements = [];
+  for (const item of prepared) {
+    if (item.variant) {
+      const changedVariant = await tx.productVariant.updateMany({
+        where: { id: item.variant.id, stock: { gte: item.requested.quantity } },
+        data: { stock: { decrement: item.requested.quantity } },
+      });
+      if (changedVariant.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
+      const updatedVariant = await tx.productVariant.findUnique({ where: { id: item.variant.id }, select: { stock: true } });
+      movements.push({
+        productId: item.product.id,
+        variantId: item.variant.id,
+        adminId,
+        type: 'SALE',
+        quantityChange: -item.requested.quantity,
+        stockAfter: updatedVariant.stock,
+        reason,
+      });
+    }
+    const changedProduct = await tx.product.updateMany({
+      where: { id: item.product.id, stock: { gte: item.requested.quantity } },
+      data: { stock: { decrement: item.requested.quantity } },
+    });
+    if (changedProduct.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
+    const updatedProduct = await tx.product.findUnique({ where: { id: item.product.id }, select: { stock: true } });
+    movements.push({
+      productId: item.product.id,
+      adminId,
+      type: 'SALE',
+      quantityChange: -item.requested.quantity,
+      stockAfter: updatedProduct.stock,
+      reason,
+    });
+  }
+  return movements;
+}
+
+function publicReview(review) {
+  return {
+    id: review.id,
+    productId: review.productId,
+    reviewerName: review.reviewerName,
+    rating: review.rating,
+    title: review.title,
+    body: review.body,
+    source: review.source,
+    isFeatured: review.isFeatured,
+    isVerifiedPurchase: review.isVerifiedPurchase,
+    editedByAdminAt: review.editedByAdminAt,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt,
+  };
+}
+
+function csvCell(value) {
+  if (value == null) return '';
+  const text = value instanceof Date ? value.toISOString() : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function orderExportRows(orders) {
+  const headers = [
+    'order_id', 'order_number', 'source', 'source_note', 'created_at', 'updated_at', 'status', 'payment_status',
+    'payment_provider', 'payment_method_code', 'payment_reference', 'discount_code', 'discount_total', 'tax_total',
+    'subtotal', 'shipping_total', 'total', 'customer_note', 'customer_user_id', 'customer_name', 'customer_email',
+    'customer_phone', 'shipping_full_name', 'shipping_phone', 'shipping_address1', 'shipping_city', 'shipping_province',
+    'shipping_postal_code', 'carrier', 'tracking_number', 'tracking_url', 'estimated_delivery', 'paid_at', 'shipped_at',
+    'delivered_at', 'created_by_admin_id', 'created_by_admin_name', 'created_by_admin_email', 'item_id', 'product_id',
+    'product_name', 'variant_id', 'variant_sku', 'variant_configuration', 'quantity', 'unit_price', 'line_total',
+    'unit_cost', 'line_cost',
+  ];
+  const rows = [headers];
+  for (const rawOrder of orders) {
+    const order = revealShippingAddress(rawOrder);
+    const address = order.shippingAddress && typeof order.shippingAddress === 'object' ? order.shippingAddress : {};
+    const customerName = order.user?.name || address.fullName || '';
+    const customerEmail = order.customerEmail || order.user?.email || '';
+    for (const item of order.items || []) {
+      const lineTotal = decimalNumber(item.unitPrice) * item.quantity;
+      const lineCost = decimalNumber(item.unitCost) * item.quantity;
+      rows.push([
+        order.id, order.id.slice(-8).toUpperCase(), order.source, order.sourceNote, order.createdAt, order.updatedAt, order.status,
+        order.paymentStatus, order.paymentProvider, order.paymentMethodCode, order.paymentReference, order.discountCode,
+        order.discountTotal, order.taxTotal, order.subtotal, order.shippingTotal, order.total, order.customerNote, order.userId,
+        customerName, customerEmail, order.customerPhone || address.phone || '', address.fullName || '', address.phone || '',
+        address.address1 || '', address.city || '', address.province || '', address.postalCode || '', order.carrier,
+        order.trackingNumber, order.trackingUrl, order.estimatedDelivery, order.paidAt, order.shippedAt, order.deliveredAt,
+        order.createdByAdminId, order.createdByAdmin?.name || '', order.createdByAdmin?.email || '', item.id, item.productId,
+        item.productName, item.variantId, item.variant?.sku || '', item.variantLabel || '', item.quantity, item.unitPrice,
+        lineTotal, item.unitCost, lineCost,
+      ]);
+    }
+  }
+  return rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
 
 async function attemptSideEffect(promise) {
@@ -906,7 +1020,77 @@ app.get('/api/products/:idOrSlug', asyncRoute(async (req, res) => {
   res.json({ product: publicProduct(product) });
 }));
 
-app.post('/api/discounts/validate', requireCustomer, asyncRoute(async (req, res) => {
+app.get('/api/products/:idOrSlug/reviews', asyncRoute(async (req, res) => {
+  const key = req.params.idOrSlug;
+  const product = await prisma.product.findFirst({
+    where: { isActive: true, status: 'ACTIVE', OR: [...(isUuid(key) ? [{ id: key }] : []), { slug: key }] },
+    select: { id: true },
+  });
+  if (!product) throw new AppError(404, 'Product not found.');
+  const [reviews, aggregate] = await Promise.all([
+    prisma.review.findMany({
+      where: { productId: product.id, status: 'APPROVED' },
+      orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+    }),
+    prisma.review.aggregate({
+      where: { productId: product.id, status: 'APPROVED' },
+      _count: { _all: true },
+      _avg: { rating: true },
+    }),
+  ]);
+  res.json({
+    reviews: reviews.map(publicReview),
+    summary: { count: aggregate._count._all, average: aggregate._avg.rating || 0 },
+  });
+}));
+
+app.post('/api/products/:idOrSlug/reviews', optionalCustomer, asyncRoute(async (req, res) => {
+  const body = validate(reviewSubmitSchema, req.body);
+  const key = req.params.idOrSlug;
+  const product = await prisma.product.findFirst({
+    where: { isActive: true, status: 'ACTIVE', OR: [...(isUuid(key) ? [{ id: key }] : []), { slug: key }] },
+    select: { id: true },
+  });
+  if (!product) throw new AppError(404, 'Product not found.');
+  const reviewerEmail = body.reviewerEmail.trim().toLowerCase();
+  const duplicate = await prisma.review.findFirst({
+    where: { productId: product.id, reviewerEmail, status: { in: ['PENDING', 'APPROVED'] } },
+    select: { id: true },
+  });
+  if (duplicate) throw new AppError(409, 'A review from this email is already awaiting moderation or published for this product.');
+
+  let verifiedOrder = null;
+  if (req.customer) {
+    verifiedOrder = await prisma.order.findFirst({
+      where: {
+        userId: req.customer.id,
+        status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] },
+        items: { some: { productId: product.id } },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+  }
+  const review = await prisma.review.create({
+    data: {
+      productId: product.id,
+      userId: req.customer?.id || null,
+      orderId: verifiedOrder?.id || null,
+      reviewerName: body.reviewerName,
+      reviewerEmail,
+      rating: body.rating,
+      title: body.title || null,
+      body: body.body,
+      status: 'PENDING',
+      source: 'WEBSITE',
+      isVerifiedPurchase: Boolean(verifiedOrder),
+    },
+  });
+  res.status(201).json({ review: publicReview(review), message: 'Thanks. Your review was submitted for moderation.' });
+}));
+
+app.post('/api/discounts/validate', optionalCustomer, asyncRoute(async (req, res) => {
   const body = validate(discountValidateSchema, req.body);
   const result = await prisma.$transaction(async (tx) => {
     const { prepared, subtotal } = await prepareRequestedItems(tx, body.items, { checkStock: false });
@@ -918,7 +1102,8 @@ app.post('/api/discounts/validate', requireCustomer, asyncRoute(async (req, res)
       prepared,
       subtotal,
       shippingTotal,
-      userId: req.customer.id,
+      userId: req.customer?.id || null,
+      guestEmail: req.customer ? null : body.customerEmail || null,
     });
     return {
       code: evaluated.discountCode,
@@ -934,45 +1119,15 @@ app.post('/api/discounts/validate', requireCustomer, asyncRoute(async (req, res)
 }));
 
 // Customer order creation: prices, discounts, delivery, payment method, and inventory are resolved only on the server.
-app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
+app.post('/api/orders', optionalCustomer, asyncRoute(async (req, res) => {
   const body = validate(orderCreateSchema, req.body);
+  const customerEmail = (req.customer?.email || body.customerEmail || '').trim().toLowerCase();
+  if (!customerEmail) throw new AppError(400, 'Email is required to place an order as a guest.');
   let selectedMethod = null;
   let order = await prisma.$transaction(async (tx) => {
     selectedMethod = await getPaymentMethod(tx, body.paymentMethodCode);
     const { prepared, subtotal } = await prepareRequestedItems(tx, body.items);
-    const stockMovements = [];
-
-    for (const item of prepared) {
-      if (item.variant) {
-        const changedVariant = await tx.productVariant.updateMany({
-          where: { id: item.variant.id, stock: { gte: item.requested.quantity } },
-          data: { stock: { decrement: item.requested.quantity } },
-        });
-        if (changedVariant.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
-        const updatedVariant = await tx.productVariant.findUnique({ where: { id: item.variant.id }, select: { stock: true } });
-        stockMovements.push({
-          productId: item.product.id,
-          variantId: item.variant.id,
-          type: 'SALE',
-          quantityChange: -item.requested.quantity,
-          stockAfter: updatedVariant.stock,
-          reason: 'Inventory allocated to customer order',
-        });
-      }
-      const changedProduct = await tx.product.updateMany({
-        where: { id: item.product.id, stock: { gte: item.requested.quantity } },
-        data: { stock: { decrement: item.requested.quantity } },
-      });
-      if (changedProduct.count !== 1) throw new AppError(409, `${item.product.name} stock changed. Please retry.`);
-      const updatedProduct = await tx.product.findUnique({ where: { id: item.product.id }, select: { stock: true } });
-      stockMovements.push({
-        productId: item.product.id,
-        type: 'SALE',
-        quantityChange: -item.requested.quantity,
-        stockAfter: updatedProduct.stock,
-        reason: 'Inventory allocated to customer order',
-      });
-    }
+    const stockMovements = await allocatePreparedInventory(tx, prepared, { reason: 'Inventory allocated to website order' });
 
     const freeShippingThreshold = decimalFromEnv('FREE_SHIPPING_THRESHOLD', 2500);
     const flatShippingRate = decimalFromEnv('FLAT_SHIPPING_RATE', 300);
@@ -984,7 +1139,8 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
       prepared,
       subtotal,
       shippingTotal,
-      userId: req.customer.id,
+      userId: req.customer?.id || null,
+      guestEmail: req.customer ? null : customerEmail,
       incrementUsage: Boolean(body.discountCode),
     });
     const taxTotal = new Prisma.Decimal(0);
@@ -993,7 +1149,10 @@ app.post('/api/orders', requireCustomer, asyncRoute(async (req, res) => {
     const protectedAddress = protectShippingAddress(body.shippingAddress);
     const created = await tx.order.create({
       data: {
-        userId: req.customer.id,
+        userId: req.customer?.id || null,
+        customerEmail,
+        customerPhone: body.shippingAddress.phone,
+        source: 'WEBSITE',
         status: 'PENDING',
         paymentStatus: selectedMethod.requiresOnlinePayment ? 'PROCESSING' : 'UNPAID',
         paymentProvider: selectedMethod.provider,
@@ -1704,12 +1863,98 @@ async function updatePaymentMethod(req, res) {
 app.put('/api/admin/payment-methods/:id', requireAdmin, requireSuperadmin, asyncRoute(updatePaymentMethod));
 app.patch('/api/admin/payment-methods/:id', requireAdmin, requireSuperadmin, asyncRoute(updatePaymentMethod));
 
-app.get('/api/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
-  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-  const allowed = ['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
-  if (status && !allowed.includes(status)) throw new AppError(400, 'Invalid order status filter.');
+app.post('/api/admin/orders/manual', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(manualOrderCreateSchema, req.body);
+  const order = await prisma.$transaction(async (tx) => {
+    const preparedResult = await prepareRequestedItems(tx, body.items);
+    const prepared = preparedResult.prepared.map((item) => ({
+      ...item,
+      unitPrice: item.requested.unitPrice == null ? item.unitPrice : new Prisma.Decimal(item.requested.unitPrice),
+    }));
+    const subtotal = prepared.reduce((sum, item) => sum.plus(item.unitPrice.mul(item.requested.quantity)), new Prisma.Decimal(0));
+    const stockMovements = await allocatePreparedInventory(tx, prepared, {
+      adminId: req.admin.id,
+      reason: `Inventory allocated to ${body.source.toLowerCase().replaceAll('_', ' ')} order`,
+    });
+    const shippingTotal = new Prisma.Decimal(body.shippingTotal);
+    const discountTotal = new Prisma.Decimal(body.discountTotal);
+    const taxTotal = new Prisma.Decimal(body.taxTotal);
+    const total = Prisma.Decimal.max(subtotal.plus(shippingTotal).plus(taxTotal).minus(discountTotal), 0);
+    const now = new Date();
+    const status = body.markDelivered ? 'DELIVERED' : body.paymentStatus === 'PAID' ? 'PAID' : 'PENDING';
+    const protectedAddress = protectShippingAddress({
+      ...body.shippingAddress,
+      fullName: body.shippingAddress.fullName || body.customerName,
+      phone: body.shippingAddress.phone || body.customerPhone || '',
+    });
+    const created = await tx.order.create({
+      data: {
+        userId: null,
+        customerEmail: body.customerEmail || null,
+        customerPhone: body.customerPhone || body.shippingAddress.phone || null,
+        source: body.source,
+        sourceNote: body.sourceNote || null,
+        createdByAdminId: req.admin.id,
+        status,
+        paymentStatus: body.paymentStatus,
+        paymentProvider: 'manual',
+        paymentMethodCode: body.paymentMethodCode,
+        discountTotal,
+        taxTotal,
+        subtotal,
+        shippingTotal,
+        total,
+        customerNote: body.customerNote || null,
+        paidAt: body.paymentStatus === 'PAID' ? now : null,
+        deliveredAt: body.markDelivered ? now : null,
+        ...protectedAddress,
+        items: {
+          create: prepared.map(({ product, variant, requested, unitPrice }) => ({
+            productId: product.id,
+            variantId: variant?.id || null,
+            productName: product.name,
+            variantLabel: variant ? [variant.color, variant.size].filter(Boolean).join(' / ') : null,
+            unitPrice,
+            unitCost: variant?.costPrice ?? product.costPrice ?? null,
+            quantity: requested.quantity,
+          })),
+        },
+      },
+      include: orderInclude,
+    });
+    for (const movement of stockMovements) {
+      await createInventoryMovement(tx, { ...movement, reference: created.id });
+    }
+    return created;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  if (body.sendConfirmation && order.customerEmail) await attemptSideEffect(emailEvents.orderPlaced(order, null));
+  res.status(201).json({ order: adminOrder(order) });
+}));
+
+app.get('/api/admin/orders/export.csv', requireAdmin, asyncRoute(async (req, res) => {
+  const status = queryChoice(req.query.status, 'status', ['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED'], '');
+  const source = queryChoice(req.query.source, 'source', ['WEBSITE', 'MANUAL', 'PHONE', 'WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'WALK_IN', 'MARKETPLACE', 'OTHER'], '');
   const orders = await prisma.order.findMany({
-    where: status ? { status } : {},
+    where: {
+      ...(status ? { status } : {}),
+      ...(source ? { source } : {}),
+    },
+    include: orderInclude,
+    orderBy: { createdAt: 'desc' },
+  });
+  const csv = orderExportRows(orders);
+  const filename = `cosmic-tech-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(`\uFEFF${csv}`);
+}));
+
+app.get('/api/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
+  const status = queryChoice(req.query.status, 'status', ['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED'], '');
+  const source = queryChoice(req.query.source, 'source', ['WEBSITE', 'MANUAL', 'PHONE', 'WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'WALK_IN', 'MARKETPLACE', 'OTHER'], '');
+  const orders = await prisma.order.findMany({
+    where: { ...(status ? { status } : {}), ...(source ? { source } : {}) },
     include: orderInclude,
     orderBy: { createdAt: 'desc' },
   });
@@ -1832,6 +2077,76 @@ app.patch('/api/admin/orders/:id/status', requireAdmin, asyncRoute(async (req, r
   if (status === 'CANCELLED') await attemptSideEffect(emailEvents.cancelled(order));
   if (status === 'DELIVERED') await attemptSideEffect(emailEvents.delivered(order));
   res.json({ order: adminOrder(order) });
+}));
+
+app.get('/api/admin/reviews', requireAdmin, asyncRoute(async (req, res) => {
+  const status = queryChoice(req.query.status, 'status', ['PENDING', 'APPROVED', 'REJECTED'], '');
+  const reviews = await prisma.review.findMany({
+    where: status ? { status } : {},
+    include: {
+      product: { select: { id: true, name: true, images: true } },
+      user: { select: { id: true, name: true, email: true } },
+      order: { select: { id: true, source: true, createdAt: true } },
+      createdByAdmin: { select: { id: true, name: true, email: true } },
+      updatedByAdmin: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  });
+  res.json({ reviews });
+}));
+
+app.post('/api/admin/reviews', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(adminReviewCreateSchema, req.body);
+  const product = await prisma.product.findUnique({ where: { id: body.productId }, select: { id: true } });
+  if (!product) throw new AppError(404, 'Product not found.');
+  const review = await prisma.review.create({
+    data: {
+      productId: body.productId,
+      reviewerName: body.reviewerName,
+      reviewerEmail: body.reviewerEmail || null,
+      rating: body.rating,
+      title: body.title || null,
+      body: body.body,
+      status: body.status,
+      source: 'MANUAL',
+      isFeatured: body.isFeatured,
+      isVerifiedPurchase: false,
+      adminNote: body.adminNote || null,
+      createdByAdminId: req.admin.id,
+      updatedByAdminId: req.admin.id,
+    },
+    include: { product: { select: { id: true, name: true, images: true } } },
+  });
+  res.status(201).json({ review });
+}));
+
+app.patch('/api/admin/reviews/:id', requireAdmin, asyncRoute(async (req, res) => {
+  const body = validate(adminReviewUpdateSchema, req.body);
+  const current = await prisma.review.findUnique({ where: { id: req.params.id } });
+  if (!current) throw new AppError(404, 'Review not found.');
+  const contentChanged = ['reviewerName', 'reviewerEmail', 'rating', 'title', 'body'].some((key) => Object.prototype.hasOwnProperty.call(body, key));
+  const review = await prisma.review.update({
+    where: { id: current.id },
+    data: {
+      ...body,
+      updatedByAdminId: req.admin.id,
+      ...(contentChanged && current.source === 'WEBSITE' ? { editedByAdminAt: new Date() } : {}),
+    },
+    include: {
+      product: { select: { id: true, name: true, images: true } },
+      user: { select: { id: true, name: true, email: true } },
+      order: { select: { id: true, source: true, createdAt: true } },
+      createdByAdmin: { select: { id: true, name: true, email: true } },
+      updatedByAdmin: { select: { id: true, name: true, email: true } },
+    },
+  });
+  res.json({ review });
+}));
+
+app.delete('/api/admin/reviews/:id', requireAdmin, requireSuperadmin, asyncRoute(async (req, res) => {
+  await prisma.review.delete({ where: { id: req.params.id } });
+  res.status(204).send();
 }));
 
 app.use((_req, _res, next) => next(new AppError(404, 'Route not found.')));

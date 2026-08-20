@@ -1,11 +1,12 @@
-import { ChevronDown, Minus, Plus, ShieldCheck, Truck } from 'lucide-react';
+import { BadgeCheck, ChevronDown, Minus, Plus, ShieldCheck, Star, Truck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ProductCard } from '../components/ProductCard';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 import { formatMoney } from '../lib/format';
-import { getProduct, getProducts } from '../lib/api';
+import { getProduct, getProductReviews, getProducts, submitProductReview } from '../lib/api';
 import type { ProductVariant } from '../types/domain';
 
 export function ProductPage() {
@@ -22,11 +23,53 @@ export function ProductPage() {
     queryFn: () => getProducts(relatedParams),
     enabled: Boolean(product),
   });
+  const reviewsQuery = useQuery({
+    queryKey: ['product-reviews', idOrSlug],
+    queryFn: () => getProductReviews(idOrSlug),
+    enabled: Boolean(product),
+  });
   const { addItem } = useCart();
+  const { user } = useAuth();
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
+  const [reviewForm, setReviewForm] = useState({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '' });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewMessage, setReviewMessage] = useState('');
   const selectedVariant = useMemo<ProductVariant | undefined>(() => product?.variants?.find((item) => item.id === selectedVariantId) ?? product?.variants?.find((item) => item.stock > 0), [product, selectedVariantId]);
+
+  useEffect(() => {
+    if (!user) return;
+    setReviewForm((current) => ({
+      ...current,
+      reviewerName: current.reviewerName || user.name || '',
+      reviewerEmail: current.reviewerEmail || user.email,
+    }));
+  }, [user]);
+
+  async function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setReviewError('');
+    setReviewMessage('');
+    setReviewSubmitting(true);
+    try {
+      const result = await submitProductReview(idOrSlug, {
+        reviewerName: reviewForm.reviewerName,
+        reviewerEmail: reviewForm.reviewerEmail,
+        rating: reviewForm.rating,
+        title: reviewForm.title.trim() || null,
+        body: reviewForm.body,
+      });
+      setReviewMessage(result.message || 'Thanks. Your review was submitted for moderation.');
+      setReviewForm((current) => ({ ...current, title: '', body: '', rating: 5 }));
+      await reviewsQuery.refetch();
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : 'Unable to submit your review.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
 
   if (isLoading) return <div className="page-loader">Loading product…</div>;
   if (error || !product) return <div className="page-loader">This product could not be found.</div>;
@@ -81,6 +124,31 @@ export function ProductPage() {
           {product.highlights?.length ? <Accordion title="Highlights"><ul>{product.highlights.map((item) => <li key={item}>{item}</li>)}</ul></Accordion> : null}
           {product.whatsInBox?.length ? <Accordion title="What’s in the box"><ul>{product.whatsInBox.map((item) => <li key={item}>{item}</li>)}</ul></Accordion> : null}
           <Accordion title="Delivery, returns & warranty"><div className="warranty-note"><ShieldCheck size={18} /><div><strong>{warrantyLabel}</strong><p>Shipping is calculated at checkout. Unused items may be returned within the configured return window. Warranty terms are recorded with your order.</p></div></div></Accordion>
+        </div>
+      </section>
+      <section className="reviews-section" id="reviews">
+        <div className="reviews-head">
+          <div><p className="eyebrow">Customer feedback</p><h2>Reviews</h2></div>
+          <div className="reviews-score"><strong>{Number(reviewsQuery.data?.summary.average ?? 0).toFixed(1)}</strong><span><span className="review-stars">{[1, 2, 3, 4, 5].map((star) => <Star key={star} size={15} fill={star <= Math.round(Number(reviewsQuery.data?.summary.average ?? 0)) ? 'currentColor' : 'none'} />)}</span><small>{reviewsQuery.data?.summary.count ?? 0} approved review{(reviewsQuery.data?.summary.count ?? 0) === 1 ? '' : 's'}</small></span></div>
+        </div>
+        <div className="reviews-layout">
+          <div className="reviews-list">
+            {reviewsQuery.isLoading ? <p>Loading reviews…</p> : (reviewsQuery.data?.reviews.length ?? 0) === 0 ? <div className="review-empty"><h3>No published reviews yet</h3><p>Be the first to share your experience with this product.</p></div> : reviewsQuery.data?.reviews.map((review) => <article className="review-card" key={review.id}>
+              <div className="review-card__top"><span className="review-stars">{[1, 2, 3, 4, 5].map((star) => <Star key={star} size={14} fill={star <= review.rating ? 'currentColor' : 'none'} />)}</span><small>{new Date(review.createdAt).toLocaleDateString()}</small></div>
+              {review.title ? <h3>{review.title}</h3> : null}<p>{review.body}</p>
+              <footer><strong>{review.reviewerName}</strong>{review.isVerifiedPurchase ? <span><BadgeCheck size={14} /> Verified purchase</span> : null}{review.source !== 'WEBSITE' ? <small>Store-entered review</small> : null}{review.editedByAdminAt ? <small>Edited for clarity by store</small> : null}</footer>
+            </article>)}
+          </div>
+          <form className="review-form" onSubmit={handleReviewSubmit}>
+            <p className="eyebrow">Share your experience</p><h3>Write a review</h3><p>Your email is used for moderation and is never displayed publicly.</p>
+            <div className="review-rating-input"><span>Rating</span><div>{[1, 2, 3, 4, 5].map((star) => <button type="button" key={star} aria-label={`${star} star${star === 1 ? '' : 's'}`} onClick={() => setReviewForm({ ...reviewForm, rating: star })}><Star size={22} fill={star <= reviewForm.rating ? 'currentColor' : 'none'} /></button>)}</div></div>
+            <label>Name<input value={reviewForm.reviewerName} onChange={(event) => setReviewForm({ ...reviewForm, reviewerName: event.target.value })} required /></label>
+            <label>Email<input type="email" value={reviewForm.reviewerEmail} onChange={(event) => setReviewForm({ ...reviewForm, reviewerEmail: event.target.value })} required /></label>
+            <label>Review title <span>Optional</span><input value={reviewForm.title} onChange={(event) => setReviewForm({ ...reviewForm, title: event.target.value })} maxLength={160} /></label>
+            <label>Your review<textarea rows={5} value={reviewForm.body} onChange={(event) => setReviewForm({ ...reviewForm, body: event.target.value })} minLength={10} maxLength={5000} required /></label>
+            {reviewMessage ? <p className="review-success">{reviewMessage}</p> : null}{reviewError ? <p className="form-error">{reviewError}</p> : null}
+            <button className="button dark" disabled={reviewSubmitting}>{reviewSubmitting ? 'Submitting…' : 'Submit review'}</button>
+          </form>
         </div>
       </section>
       {relatedProducts.length > 0 && <section className="product-section related"><div className="section-head"><h2>Complete your setup</h2></div><div className="product-grid">{relatedProducts.map((item) => <ProductCard key={item.id} product={item} />)}</div></section>}

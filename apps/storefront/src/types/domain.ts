@@ -67,6 +67,26 @@ export interface Product {
   createdAt?: string;
 }
 
+export interface ProductReview {
+  id: string;
+  productId: string;
+  reviewerName: string;
+  rating: number;
+  title?: string | null;
+  body: string;
+  source: 'WEBSITE' | 'MANUAL' | 'IMPORTED';
+  isFeatured?: boolean;
+  isVerifiedPurchase?: boolean;
+  editedByAdminAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ProductReviewSummary {
+  count: number;
+  average: number;
+}
+
 export interface PaymentMethod {
   id: string;
   code: string;

@@ -27,12 +27,16 @@ export const ADMIN_API = {
   paymentMethods: '/api/admin/payment-methods',
   paymentMethod: (id: string) => `/api/admin/payment-methods/${id}`,
   orders: '/api/admin/orders',
+  manualOrder: '/api/admin/orders/manual',
+  orderExport: '/api/admin/orders/export.csv',
   order: (id: string) => `/api/admin/orders/${id}`,
   orderStatus: (id: string) => `/api/admin/orders/${id}/status`,
   orderPayment: (id: string) => `/api/admin/orders/${id}/payment`,
   orderShipment: (id: string) => `/api/admin/orders/${id}/shipment`,
   orderDelete: (id: string) => `/api/admin/orders/${id}`,
   deletedOrders: '/api/admin/orders/deleted',
+  reviews: '/api/admin/reviews',
+  review: (id: string) => `/api/admin/reviews/${id}`,
   uploadSignature: '/api/admin/uploads/signature',
   media: '/api/admin/media',
   mediaAsset: (id: string) => `/api/admin/media/${id}`,
@@ -112,6 +116,29 @@ export async function apiRequest<T>(
   }
 
   return payload as T;
+}
+
+
+export async function downloadAdminFile(path: string, filename: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include', headers: { Accept: 'text/csv,*/*' } });
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : 'Unable to download the file.', 0);
+  }
+  if (!response.ok) {
+    const payload = await response.text().catch(() => '');
+    throw new ApiError(payload || `Download failed with status ${response.status}.`, response.status);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function unwrapEntity<T>(payload: unknown, keys: string[] = []): T {

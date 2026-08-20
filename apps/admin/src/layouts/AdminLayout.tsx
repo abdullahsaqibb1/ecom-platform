@@ -13,6 +13,7 @@ import {
   UsersRound,
   Warehouse,
   MonitorSmartphone,
+  MessageSquareText,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -28,6 +29,7 @@ const baseNav = [
   { to: '/products', label: 'Products', icon: Boxes },
   { to: '/inventory', label: 'Inventory', icon: Warehouse },
   { to: '/orders', label: 'Orders', icon: PackageCheck },
+  { to: '/reviews', label: 'Reviews', icon: MessageSquareText },
   { to: '/categories', label: 'Categories', icon: FolderTree },
   { to: '/collections', label: 'Collections', icon: Layers3 },
   { to: '/discounts', label: 'Discounts', icon: BadgePercent },

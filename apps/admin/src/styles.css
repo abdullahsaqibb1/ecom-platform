@@ -650,3 +650,55 @@ tbody tr:hover { background: #f8f5f0; }
 .typography-preview__button { min-height:44px; padding:0 20px; border:1px solid #171717; background:#171717; color:white; font-size:10px; }
 @media (max-width:1000px) { .typography-presets { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:700px) { .typography-presets { grid-template-columns:1fr; } .typography-control-row { grid-template-columns:1fr; } }
+
+/* External sales, CSV order operations, and review moderation */
+.page-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.checkbox-row { display:flex; align-items:center; gap:9px; color:var(--ink); font-size:10px; }
+.checkbox-row input { width:15px; height:15px; margin:0; accent-color:var(--ink); }
+
+.manual-order-form { display:grid; gap:24px; }
+.manual-order-section { padding-bottom:24px; border-bottom:1px solid var(--line); }
+.manual-order-section:last-of-type { border-bottom:0; }
+.manual-order-section__head { display:flex; align-items:flex-start; gap:12px; margin-bottom:17px; }
+.manual-order-section__head > span { display:grid; place-items:center; min-width:28px; height:28px; border:1px solid var(--line); font-size:9px; letter-spacing:.08em; }
+.manual-order-section__head > div { display:flex; flex-direction:column; gap:3px; }
+.manual-order-section__head strong { font-size:12px; }
+.manual-order-section__head p { margin:0; color:var(--muted); font-size:9px; line-height:1.5; }
+.manual-lines { display:grid; gap:8px; margin-bottom:12px; }
+.manual-line { display:grid; grid-template-columns:minmax(180px,1.3fr) minmax(170px,1fr) 110px 100px 105px 32px; align-items:end; gap:8px; padding:12px; border:1px solid var(--line); background:var(--surface); }
+.manual-line label { display:grid; gap:5px; min-width:0; }
+.manual-line label > span, .manual-line__qty > span { color:var(--muted); font-size:8px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+.manual-line select, .manual-line input { width:100%; min-width:0; height:38px; padding:0 9px; border:1px solid var(--line); background:var(--surface); font:inherit; font-size:10px; }
+.manual-line__qty { display:grid; gap:5px; }
+.manual-line__qty > div { height:38px; display:grid; grid-template-columns:30px 1fr 30px; align-items:center; border:1px solid var(--line); }
+.manual-line__qty button { height:100%; border:0; background:transparent; display:grid; place-items:center; cursor:pointer; }
+.manual-line__qty strong { text-align:center; font-size:10px; }
+.manual-line__qty small { color:var(--muted); font-size:8px; white-space:nowrap; }
+.manual-line__total { align-self:center; text-align:right; font-size:11px; }
+.manual-order-summary { margin-left:auto; width:min(100%,380px); display:grid; gap:8px; padding:16px 0 0; }
+.manual-order-summary > div { display:flex; justify-content:space-between; align-items:center; gap:15px; font-size:10px; }
+.manual-order-summary span { color:var(--muted); }
+.manual-order-summary__total { padding-top:10px; border-top:1px solid var(--line); }
+.manual-order-summary__total strong { font-family:'Italiana', Georgia, serif; font-size:24px; font-weight:400; }
+
+.admin-review-stars { display:inline-flex; gap:1px; color:#9d6b16; }
+.review-verified-copy { display:inline-flex !important; align-items:center; gap:4px; color:var(--success) !important; }
+.review-product-lock { display:grid; gap:6px; padding:12px 13px; border:1px solid var(--line); background:var(--soft); }
+.review-product-lock > span { color:var(--muted); font-size:9px; letter-spacing:.05em; text-transform:uppercase; }
+.review-product-lock strong { font-size:11px; }
+.review-editor-note { display:flex; align-items:flex-start; gap:10px; padding:13px 14px; border:1px solid #cdded4; background:#f3f8f5; color:var(--success); }
+.review-editor-note > div { display:flex; flex-direction:column; gap:3px; }
+.review-editor-note strong { color:var(--ink); font-size:10px; }
+.review-editor-note span { color:var(--muted); font-size:9px; line-height:1.5; }
+
+@media (max-width: 1050px) {
+  .manual-line { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:end; }
+  .manual-line__price, .manual-line__qty { min-width:0; }
+  .manual-line__total { text-align:left; }
+}
+@media (max-width: 680px) {
+  .page-header__actions, .page-actions { width:100%; justify-content:stretch; }
+  .page-actions .button { flex:1; }
+  .manual-line { grid-template-columns:1fr; }
+  .manual-line__total { padding:5px 0; }
+}
