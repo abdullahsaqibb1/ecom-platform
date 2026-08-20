@@ -8,22 +8,21 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { apiRequest, ADMIN_API, unwrapEntity } from '../../lib/api';
-import { adminTokenStorage } from '../../lib/storage';
+import { adminSecurityStorage } from '../../lib/storage';
 import type { Admin } from '../../types/domain';
 
 interface LoginPayload {
   email: string;
   password: string;
+  turnstileToken?: string;
 }
 
-interface LoginResponse {
-  token?: string;
-  accessToken?: string;
+interface SessionResponse {
   admin?: Admin;
+  csrfToken?: string | null;
   data?: {
-    token?: string;
-    accessToken?: string;
     admin?: Admin;
+    csrfToken?: string | null;
   };
 }
 
@@ -32,78 +31,74 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshAdmin: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function readToken(payload: LoginResponse): string | undefined {
-  return (
-    payload.token ??
-    payload.accessToken ??
-    payload.data?.token ??
-    payload.data?.accessToken
-  );
+function readAdmin(payload: SessionResponse): Admin | undefined {
+  return payload.admin ?? payload.data?.admin;
 }
 
-function readAdmin(payload: LoginResponse): Admin | undefined {
-  return payload.admin ?? payload.data?.admin;
+function readCsrf(payload: SessionResponse): string | null | undefined {
+  return payload.csrfToken ?? payload.data?.csrfToken;
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    adminTokenStorage.clear();
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest<void>(ADMIN_API.logout, { method: 'POST' });
+    } catch {
+      // Always clear the local CSRF state if the server session is already gone.
+    }
+    adminSecurityStorage.clear();
     setAdmin(null);
   }, []);
 
   const refreshAdmin = useCallback(async () => {
-    if (!adminTokenStorage.get()) {
-      setAdmin(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const payload = await apiRequest<unknown>(ADMIN_API.me);
-      setAdmin(unwrapEntity<Admin>(payload, ['admin', 'user']));
+      const payload = await apiRequest<SessionResponse>(ADMIN_API.me);
+      const returnedAdmin = readAdmin(payload) ?? unwrapEntity<Admin>(payload, ['admin', 'user']);
+      const csrfToken = readCsrf(payload);
+      if (csrfToken) adminSecurityStorage.setCsrf(csrfToken);
+      setAdmin(returnedAdmin);
     } catch {
-      logout();
+      adminSecurityStorage.clear();
+      setAdmin(null);
     } finally {
       setIsLoading(false);
     }
-  }, [logout]);
+  }, []);
 
   useEffect(() => {
     void refreshAdmin();
   }, [refreshAdmin]);
 
   useEffect(() => {
-    const handleExpired = () => logout();
+    const handleExpired = () => {
+      adminSecurityStorage.clear();
+      setAdmin(null);
+    };
     window.addEventListener('admin-session-expired', handleExpired);
     return () => window.removeEventListener('admin-session-expired', handleExpired);
-  }, [logout]);
+  }, []);
 
   const login = useCallback(
     async (credentials: LoginPayload) => {
-      const payload = await apiRequest<LoginResponse>(ADMIN_API.login, {
+      const payload = await apiRequest<SessionResponse>(ADMIN_API.login, {
         method: 'POST',
         auth: false,
         body: credentials,
       });
-      const token = readToken(payload);
-      if (!token) throw new Error('The login response did not include an admin token.');
-
-      adminTokenStorage.set(token);
+      const csrfToken = readCsrf(payload);
+      if (csrfToken) adminSecurityStorage.setCsrf(csrfToken);
       const returnedAdmin = readAdmin(payload);
-      if (returnedAdmin) {
-        setAdmin(returnedAdmin);
-      } else {
-        await refreshAdmin();
-      }
+      if (returnedAdmin) setAdmin(returnedAdmin);
+      else await refreshAdmin();
     },
     [refreshAdmin],
   );
@@ -112,7 +107,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     () => ({
       admin,
       isLoading,
-      isAuthenticated: Boolean(admin && adminTokenStorage.get()),
+      isAuthenticated: Boolean(admin),
       login,
       logout,
       refreshAdmin,

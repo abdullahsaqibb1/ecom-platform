@@ -1,4 +1,4 @@
-import { adminTokenStorage } from './storage';
+import { adminSecurityStorage } from './storage';
 import type { Paginated } from '../types/domain';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -6,6 +6,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, ''
 export const ADMIN_API = {
   login: '/api/admin/auth/login',
   me: '/api/admin/me',
+  logout: '/api/admin/auth/logout',
   dashboard: '/api/admin/dashboard',
   storefront: '/api/admin/storefront',
   contentPages: '/api/admin/content-pages',
@@ -70,17 +71,21 @@ export async function apiRequest<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const { body, auth = true, headers, ...rest } = options;
-  const token = adminTokenStorage.get();
   const requestHeaders = new Headers(headers);
   requestHeaders.set('Accept', 'application/json');
 
   if (body !== undefined) requestHeaders.set('Content-Type', 'application/json');
-  if (auth && token) requestHeaders.set('Authorization', `Bearer ${token}`);
+  const method = String(rest.method || 'GET').toUpperCase();
+  if (auth && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrfToken = adminSecurityStorage.getCsrf();
+    if (csrfToken) requestHeaders.set('X-CSRF-Token', csrfToken);
+  }
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
+      credentials: 'include',
       headers: requestHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -96,7 +101,7 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     if (response.status === 401 && auth) {
-      adminTokenStorage.clear();
+      adminSecurityStorage.clear();
       window.dispatchEvent(new Event('admin-session-expired'));
     }
     throw new ApiError(
@@ -181,6 +186,8 @@ interface UploadSignature {
   folder: string;
   signature: string;
   uploadUrl: string;
+  allowedFormats?: string;
+  maxBytes?: number;
 }
 
 interface CloudinaryUploadResponse {
@@ -197,8 +204,8 @@ export async function uploadProductImage(file: File): Promise<UploadedMediaAsset
   if (!file.type.startsWith('image/')) {
     throw new ApiError('Choose an image file.', 400);
   }
-  if (file.size > 12 * 1024 * 1024) {
-    throw new ApiError('Images must be 12 MB or smaller.', 400);
+  if (file.size > 8 * 1024 * 1024) {
+    throw new ApiError('Images must be 8 MB or smaller.', 400);
   }
 
   const signature = await apiRequest<UploadSignature>(ADMIN_API.uploadSignature, {
@@ -210,6 +217,7 @@ export async function uploadProductImage(file: File): Promise<UploadedMediaAsset
   form.append('timestamp', String(signature.timestamp));
   form.append('signature', signature.signature);
   form.append('folder', signature.folder);
+  if (signature.allowedFormats) form.append('allowed_formats', signature.allowedFormats);
 
   let response: Response;
   try {

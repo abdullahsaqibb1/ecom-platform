@@ -625,3 +625,5 @@ tbody tr:hover { background: #f8f5f0; }
 .content-section-editor__head strong { font-size:12px; }
 .content-section-editor__head span { color:var(--muted); font-size:10px; }
 .content-section-editor > article { border:1px solid var(--line); background:#f8f5f0; padding:15px; margin-top:10px; }
+
+.turnstile-wrap { min-height: 65px; display:flex; align-items:center; }

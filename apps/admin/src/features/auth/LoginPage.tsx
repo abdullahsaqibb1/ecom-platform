@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { Button } from '../../components/Button';
+import { TurnstileWidget } from '../../components/TurnstileWidget';
 import { useAuth } from './AuthContext';
 
 const schema = z.object({
@@ -16,6 +17,8 @@ type FormValues = z.infer<typeof schema>;
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const [apiError, setApiError] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -28,10 +31,12 @@ export function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setApiError('');
     try {
-      await login(values);
+      await login({ ...values, turnstileToken: turnstileToken || undefined });
       const from = (location.state as { from?: string } | null)?.from || '/';
       navigate(from, { replace: true });
     } catch (error) {
+      setTurnstileToken('');
+      setTurnstileKey((value) => value + 1);
       setApiError(error instanceof Error ? error.message : 'Sign-in failed.');
     }
   };
@@ -45,8 +50,8 @@ export function LoginPage() {
           <h1>Manage the store without crossing the customer security boundary.</h1>
           <p>This application accepts only admin credentials and communicates exclusively with protected admin API routes.</p>
           <div className="login-proof-grid">
-            <div><strong>Separate JWT</strong><span>Dedicated admin signing secret</span></div>
-            <div><strong>Separate storage</strong><span>Isolated browser session key</span></div>
+            <div><strong>HttpOnly session</strong><span>Authentication token is inaccessible to browser scripts</span></div>
+            <div><strong>CSRF protected</strong><span>State changes require a session security token</span></div>
             <div><strong>Separate origin</strong><span>Deploy independently from storefront</span></div>
           </div>
         </div>
@@ -59,6 +64,7 @@ export function LoginPage() {
             {apiError ? <div className="form-alert">{apiError}</div> : null}
             <label className="field"><span>Email address</span><input type="email" autoComplete="username" placeholder="your-admin@example.com" {...register('email')} />{errors.email ? <small>{errors.email.message}</small> : null}</label>
             <label className="field"><span>Password</span><input type="password" autoComplete="current-password" placeholder="Enter your password" {...register('password')} />{errors.password ? <small>{errors.password.message}</small> : null}</label>
+            <TurnstileWidget key={turnstileKey} onToken={setTurnstileToken} />
             <Button type="submit" isLoading={isSubmitting} className="button--full">Sign in securely <ArrowRight size={17} /></Button>
           </form>
           <div className="login-card__note"><ShieldCheck size={17} /><span>Customer accounts cannot authenticate here.</span></div>
